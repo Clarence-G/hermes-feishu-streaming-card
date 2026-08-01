@@ -9,6 +9,36 @@ def read_doc(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def test_documentation_index_separates_current_guides_from_history():
+    index = read_doc("docs/README.md")
+    english_index = read_doc("docs/README.en.md")
+    readme = read_doc("README.md")
+    english_readme = read_doc("README.en.md")
+
+    assert "docs/README.md" in readme
+    assert "docs/README.en.md" in english_readme
+    for marker in (
+        "user-guide.md",
+        "architecture.md",
+        "testing.md",
+        "wiki/README.md",
+        "release-notes-v*.md",
+        "superpowers/plans/",
+        "历史设计和实施记录",
+    ):
+        assert marker in index
+    for marker in (
+        "user-guide.en.md",
+        "architecture.en.md",
+        "testing.en.md",
+        "wiki/README.md",
+        "release-notes-v*.md",
+        "superpowers/plans/",
+        "historical design and implementation records",
+    ):
+        assert marker in english_index
+
+
 def test_maintainer_docs_define_reliable_notice_delivery_contract():
     event_flow = read_doc("docs/wiki/event-flow.md")
     maintenance = read_doc("docs/wiki/maintenance-guide.md")
@@ -484,6 +514,8 @@ def test_todo_points_to_v38_public_plan_docs():
 def test_english_readme_and_docs_are_linked():
     readme = read_doc("README.md")
     english_readme = read_doc("README.en.md")
+    docs_index = read_doc("docs/README.md")
+    english_docs_index = read_doc("docs/README.en.md")
     expected_docs = [
         "architecture",
         "event-protocol",
@@ -528,8 +560,8 @@ def test_english_readme_and_docs_are_linked():
     for name in expected_docs:
         zh_path = f"docs/{name}.md"
         en_path = f"docs/{name}.en.md"
-        assert en_path in readme
-        assert en_path in english_readme
+        assert f"{name}.md" in docs_index
+        assert f"{name}.en.md" in english_docs_index
         assert (ROOT / en_path).exists()
         assert f"[English]({name}.en.md)" in read_doc(zh_path)
         assert f"[中文]({name}.md)" in read_doc(en_path)
@@ -1032,6 +1064,7 @@ def test_docs_describe_safe_legacy_to_sidecar_migration():
 
 
 def test_docs_describe_e2e_visual_preview_materials():
+    docs_index = read_doc("docs/README.md")
     docs = "\n".join(
         [
             read_doc("README.md"),
@@ -1043,7 +1076,7 @@ def test_docs_describe_e2e_visual_preview_materials():
     svg = read_doc("docs/assets/e2e-card-preview.svg")
     preview_json = read_doc("docs/assets/e2e-card-preview.json")
 
-    assert "docs/e2e-verification.md" in docs
+    assert "e2e-verification.md" in docs_index
     assert "e2e-card-preview.svg" in docs
     assert "e2e-card-preview.json" in docs
     assert "tools/generate_e2e_preview.py" in docs
@@ -1060,6 +1093,7 @@ def test_docs_describe_e2e_visual_preview_materials():
 
 
 def test_docs_describe_release_readiness_boundaries():
+    docs_index = read_doc("docs/README.md")
     release_readiness = read_doc("docs/release-readiness.md")
     english_readiness = read_doc("docs/release-readiness.en.md")
     docs = "\n".join(
@@ -1070,7 +1104,7 @@ def test_docs_describe_release_readiness_boundaries():
         ]
     )
 
-    assert "docs/release-readiness.md" in docs
+    assert "release-readiness.md" in docs_index
     assert "4.0.0" in release_readiness
     assert "tool.updated.detail" in release_readiness
     assert "thinking.delta" in release_readiness

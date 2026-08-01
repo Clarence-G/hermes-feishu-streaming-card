@@ -240,17 +240,10 @@ This remains a sidecar-only design: Hermes keeps only installer-owned, detectabl
 
 ## Documentation
 
+- Documentation index: [docs/README.en.md](docs/README.en.md)
 - Full user guide: [中文](docs/user-guide.md) / [English](docs/user-guide.en.md)
 - Installer package guide: [README-install.md](README-install.md)
-- Architecture: [中文](docs/architecture.md) / [English](docs/architecture.en.md)
-- Event protocol: [中文](docs/event-protocol.md) / [English](docs/event-protocol.en.md)
-- Installer safety: [中文](docs/installer-safety.md) / [English](docs/installer-safety.en.md)
-- Migration: [中文](docs/migration.md) / [English](docs/migration.en.md)
-- E2E verification: [中文](docs/e2e-verification.md) / [English](docs/e2e-verification.en.md)
-- Release readiness: [中文](docs/release-readiness.md) / [English](docs/release-readiness.en.md)
-- Testing: [中文](docs/testing.md) / [English](docs/testing.en.md)
 - Maintainer wiki: [docs/wiki](docs/wiki/README.md)
-- V4.1 safety controls and troubleshooting: [docs/wiki/v4.1-safety-controls.md](docs/wiki/v4.1-safety-controls.md)
 
 ## Contributors
 

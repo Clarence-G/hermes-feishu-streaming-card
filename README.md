@@ -240,17 +240,10 @@ Hermes Gateway
 
 ## 文档入口
 
+- 文档总览：[docs/README.md](docs/README.md)
 - 详细使用手册：[中文](docs/user-guide.md) / [English](docs/user-guide.en.md)
 - 安装包说明：[README-install.md](README-install.md)
-- 架构说明：[中文](docs/architecture.md) / [English](docs/architecture.en.md)
-- 事件协议：[中文](docs/event-protocol.md) / [English](docs/event-protocol.en.md)
-- 安装安全：[中文](docs/installer-safety.md) / [English](docs/installer-safety.en.md)
-- 迁移说明：[中文](docs/migration.md) / [English](docs/migration.en.md)
-- 端到端验证：[中文](docs/e2e-verification.md) / [English](docs/e2e-verification.en.md)
-- 发布准备：[中文](docs/release-readiness.md) / [English](docs/release-readiness.en.md)
-- 测试说明：[中文](docs/testing.md) / [English](docs/testing.en.md)
 - 项目维护 Wiki：[docs/wiki](docs/wiki/README.md)
-- V4.1 安全控制与排障：[docs/wiki/v4.1-safety-controls.md](docs/wiki/v4.1-safety-controls.md)
 
 ## 贡献者
 

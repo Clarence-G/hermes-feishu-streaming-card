@@ -1,6 +1,6 @@
 # Hermes Feishu Streaming Card Wiki
 
-这个目录是项目维护 wiki。README 面向用户介绍能力，`docs/release-notes-*` 记录版本变化；这里沉淀长期有效的维护知识、运行链路和验收清单。
+这个目录是项目维护 wiki。完整文档分层与阅读入口见 [项目文档总览](../README.md)；README 面向用户介绍能力，`docs/release-notes-*` 记录版本变化；这里沉淀长期有效的维护知识、运行链路和验收清单。
 
 ## 一句话理解
 
