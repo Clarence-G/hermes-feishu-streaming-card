@@ -465,6 +465,59 @@ def test_managed_detached_runner_exits_before_listen_without_matching_pidfile(
     assert handshakes == [(runner.os.getpid(), "owned-token")]
 
 
+def test_systemd_user_runner_generates_private_runtime_identity(
+    monkeypatch, tmp_path
+):
+    config = {"server": {"host": "127.0.0.1", "port": 0}, "feishu": {}, "card": {}}
+    captured = {}
+    written = []
+    token = "generated-at-service-start"
+    monkeypatch.setattr(runner, "load_config", lambda _path: config)
+    monkeypatch.setattr(runner, "ensure_transport_root_secret", lambda: b"r" * 32)
+    monkeypatch.setattr(runner, "transport_root_privacy_verified", lambda: True)
+    monkeypatch.setattr(
+        runner,
+        "generate_process_token",
+        lambda: token,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runner,
+        "write_pid_record",
+        lambda pid, record_token, *, manager, unit: written.append(
+            (pid, record_token, manager, unit)
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runner,
+        "create_app",
+        lambda _client, **kwargs: captured.update(kwargs) or object(),
+    )
+    monkeypatch.setattr(runner.web, "run_app", lambda *_args, **_kwargs: None)
+
+    assert main(
+        [
+            "--config",
+            "config.yaml",
+            "--systemd-user-service",
+            "--state-dir",
+            str(tmp_path),
+        ]
+    ) == 0
+
+    assert written == [
+        (
+            runner.os.getpid(),
+            token,
+            "systemd-user",
+            runner.SYSTEMD_UNIT_NAME,
+        )
+    ]
+    assert captured["process_token"] == token
+    assert runner.state_dir() == tmp_path
+
+
 def test_main_passes_selected_env_file_to_operations_root_resolution(monkeypatch, tmp_path):
     config = {"server": {"host": "127.0.0.1", "port": 0}, "feishu": {}, "card": {}}
     config_path = tmp_path / "config.yaml"

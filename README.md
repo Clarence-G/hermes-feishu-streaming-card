@@ -102,7 +102,7 @@ service:
   manager: auto
 ```
 
-`native_chats` 只做精确匹配；多 profile 时放在对应 `profiles.<id>.bindings` 下。现有配置缺少 `integrity` 段时按 `notify` 加载，不会静默启用自动修复。完整配置、迁移和排障见 [V4.1 安全控制与排障](docs/wiki/v4.1-safety-controls.md)。
+`native_chats` 只做精确匹配；多 profile 时放在对应 `profiles.<id>.bindings` 下。现有配置缺少 `integrity` 段时按 `notify` 加载，不会静默启用自动修复。Linux 上 `service.manager: auto` 会优先安装并 enable 私有的持久 `systemd --user` unit；它会随 user manager 启动，`stop` 只停止本次进程，`uninstall` 才会 disable 并移除受管 unit。无人登录也要随宿主机启动时，可由管理员显式配置 login lingering；HFC 不自动执行 `loginctl enable-linger`，也不调用 sudo。完整配置、迁移和排障见 [V4.1 安全控制与排障](docs/wiki/v4.1-safety-controls.md)。
 
 需要显示 Codex 订阅剩余额度时，把 `subscription_usage` 加入 `footer_fields`。插件仅在显式启用后，通过 Hermes 原生 `fetch_account_usage("openai-codex")` 查询；旧 Hermes、未登录或网络失败时静默隐藏，不影响卡片完成。`card.text_sizes` 可分别设置 `body`、`reasoning`、`tool`、`notice`、`footer`，也可用 `default` / `pc` / `mobile` 做设备映射；卡片物理 width/height 由 Feishu/Lark 客户端控制。
 
@@ -165,7 +165,7 @@ bash install-docker.sh
 | `repair --hermes-dir ... --yes` | 修复可验证的 hook manifest/backup 状态 |
 | `setup --repair ... --yes` / `--no-repair` | 自动修复已知安全状态，或显式关闭自动修复 |
 | `restore --hermes-dir ... --yes` | 恢复原始 Hermes 文件 |
-| `start --config ...` / `status --config ...` / `stop --config ...` | sidecar 进程管理和 `/health` 检查；Linux/systemd 使用独立 user service |
+| `start --config ...` / `status --config ...` / `stop --config ...` | sidecar 进程管理和 `/health` 检查；Linux/systemd 使用 enabled 的持久 user service |
 | `smoke-feishu-card --profile-id ... --chat-id ...` | 真实飞书卡片 smoke test |
 | `bots list|show|add|remove|test` | 多 bot 注册、查看和联调 |
 

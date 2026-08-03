@@ -44,7 +44,7 @@ python3 -m pytest \
   tests/integration/test_cli_process.py -q
 ```
 
-This matrix covers exact/profile-scoped native policy with signatures/replay, fenced-code-safe table compact/truncate, the 28,000-byte terminal native handoff, `runtime.hello` / `runtime.heartbeat` readiness, strict safe repair, all four service managers, and the non-systemd Docker boundary. Loopback aiohttp tests may need an environment that allows local ephemeral ports. Automation does not replace real card → native → card, seven-table, oversized-handoff, Hermes-upgrade, Linux-manager, and ordinary Docker Compose acceptance.
+This matrix covers exact/profile-scoped native policy with signatures/replay, fenced-code-safe table compact/truncate, the 28,000-byte terminal native handoff, `runtime.hello` / `runtime.heartbeat` readiness, strict safe repair, all four service managers, and the non-systemd Docker boundary. Loopback aiohttp tests may need an environment that allows local ephemeral ports. Automation does not replace real card → native → card, seven-table, oversized-handoff, Hermes-upgrade, ordinary Docker Compose, or Linux user-manager enable, logout/login, host-reboot, and explicit-linger acceptance.
 
 ## V4.0.21 content-integrity regressions
 

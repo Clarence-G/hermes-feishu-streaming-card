@@ -101,17 +101,19 @@
 职责：
 
 - 按 `service.manager` 的 `auto` / `systemd-user` / `systemd-system` / `detached` 明确选择进程所有者。
-- `auto` 仅在 Linux user manager 可用时使用独立 transient user service，其他环境使用 detached。
+- `auto` 仅在 Linux user manager 可用时安装并 enable state dir 内 marker-owned 的持久 user unit，其他环境使用 detached。
 - 用 PID、process token 和 manager/unit identity 管理 status、migration 与 stop。
 
 高风险点：
 
 - `start_new_session=True` 不能脱离 systemd cgroup，不能作为 Linux Gateway 重启隔离方案。
-- systemd 可重启 sidecar 并改变 PID；status/stop 必须以 token 和记录的 unit 为稳定身份，不能只比较旧 PID。
+- user service runner 每次 systemd 启动都必须生成新的 token 并原子写入 pidfile；systemd 可重启 sidecar 并改变 PID，status/stop 必须以 token 和记录的 unit 为稳定身份，不能只比较旧 PID。
+- 旧 transient user service 可在 health/token 身份匹配时停止并迁移；宿主机重启后的 dead transient pidfile 只能在记录身份正确且 PID 已死亡时清理，不能向该 PID 发信号。
+- `stop` 只 stop 持久 user unit 并保留 enable 状态；`uninstall` 必须先验证私有 mode、owner、marker 与 inode，再 disable/remove。启动失败必须 disable，避免宿主机重启后形成失败循环。
 - Hermes 升级可能替换 `gateway/run.py` 而保留 HFC backup/manifest；CLI `status` / `start` 必须只读识别 verified `stale_unpatched`，仅对可执行的 `accept_hermes_upgrade` plan 给出显式恢复命令。用户改动、损坏或证据不足必须 fail-closed，不得自动重写 Hermes 或自动重启 Gateway。
 - runner 必须真正读取 `setup` / `start` 显式传入的 `--env-file`。配置优先级保持 YAML < 同目录 `.env` < 显式 env file < process env；禁止为了修复 systemd 环境而隐式读取全局 `~/.hermes/.env`。
 - 升级迁移只能停止 PID/token/health 三者一致的旧进程，未知进程保持 fail-closed。
-- `auto` 不得探测 system bus、调用 sudo/pkexec、写 `/etc` 或静默 fallback 到 system manager；`systemd-system` 只能显式使用 transient unit。
+- `auto` 不得探测 system bus、调用 sudo/pkexec、写 `/etc`、自动启用 login lingering 或静默 fallback 到 system manager；`systemd-system` 只能显式使用 transient unit。
 - 调整 lifecycle 时运行 `tests/unit/test_process.py`、`tests/integration/test_cli_process.py` 和 `tests/unit/test_install_scripts.py`。
 
 ### Hermes Feishu SDK 能力门禁

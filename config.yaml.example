@@ -16,8 +16,9 @@ server:
 integrity:
   mode: safe
 
-# Sidecar process ownership. `auto` selects user systemd only when available,
-# otherwise detached. It never enters system systemd or invokes sudo.
+# Sidecar process ownership. On Linux, `auto` installs/enables a persistent
+# user-systemd unit when available; otherwise it uses detached. HFC never enters
+# system systemd, invokes sudo, or enables login lingering automatically.
 service:
   manager: auto
 

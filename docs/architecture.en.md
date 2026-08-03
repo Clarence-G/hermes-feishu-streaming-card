@@ -28,7 +28,7 @@ The installer modifies Hermes only through `hermes_feishu_card.install.patcher`.
 
 ### HTTP sidecar
 
-`hermes_feishu_card.server` receives events, routes by profile, bot, message, and reply anchor, manages `CardSession`, coalesces high-frequency deltas into bounded PATCH calls, and drains pending content before terminal updates. `hermes_feishu_card.cli start/status/stop` manages the local process. Stop verifies both the pidfile PID/token and `/health` `process_pid/process_token_hash` before terminating anything.
+`hermes_feishu_card.server` receives events, routes by profile, bot, message, and reply anchor, manages `CardSession`, coalesces high-frequency deltas into bounded PATCH calls, and drains pending content before terminal updates. `hermes_feishu_card.cli start/status/stop` manages the local process. Stop verifies both the pidfile PID/token and `/health` `process_pid/process_token_hash` before terminating anything. When a Linux user manager is available, `auto` installs and enables a private persistent user unit from the state directory, and the runner generates a fresh process identity on every systemd start. Other POSIX environments retain an owned detached process.
 
 `/health` exposes only sanitized, hashed, process-local state, including event, event-auth rejection, card delivery, cleanup, and routing metrics. `send_card` is not blindly retried because a retry could create duplicate cards; updates to an existing message id use bounded retries.
 

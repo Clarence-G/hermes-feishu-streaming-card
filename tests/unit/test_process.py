@@ -697,31 +697,36 @@ def test_systemd_system_availability_uses_only_explicit_noninteractive_probe(
     ]
 
 
-def test_start_sidecar_uses_restartable_systemd_user_unit(monkeypatch, tmp_path):
-    config_path = tmp_path / "config.yaml"
-    env_path = tmp_path / "CUSTOM.env"
-    log_file = tmp_path / "sidecar.log"
+def test_systemd_user_availability_does_not_require_systemd_run(monkeypatch):
     commands: list[list[str]] = []
-    pid_records: list[tuple[int, str, str, str]] = []
-    token = "fixed-sidecar-token"
-    health_responses = iter(
-        (
-            None,
-            {
-                "status": "healthy",
-                "process_pid": 4321,
-                "process_token_hash": process.process_token_hash(token),
-            },
-        )
+    monkeypatch.setattr(process.sys, "platform", "linux")
+    monkeypatch.setattr(
+        process.shutil,
+        "which",
+        lambda name: "/usr/bin/systemctl" if name == "systemctl" else None,
     )
 
-    monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
-    monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
+    def fake_run(command, **kwargs):
+        commands.append(list(command))
+        assert kwargs["stdout"] is subprocess.DEVNULL
+        assert kwargs["stderr"] is subprocess.DEVNULL
+        assert kwargs["timeout"] == 3
+        assert kwargs["check"] is False
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(process.subprocess, "run", fake_run)
+
+    assert process._systemd_user_available() is True
+    assert commands == [["systemctl", "--user", "show-environment"]]
+
+
+def test_start_systemd_user_sidecar_installs_persistent_enabled_unit(
+    monkeypatch, tmp_path
+):
+    log_file = tmp_path / "sidecar.log"
+    commands: list[list[str]] = []
     monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
     monkeypatch.setattr(process, "log_path", lambda: log_file)
-    monkeypatch.setattr(process.secrets, "token_hex", lambda _length: token)
-    monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
-    monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
 
     def fake_run(command, **kwargs):
         commands.append(list(command))
@@ -732,13 +737,135 @@ def test_start_sidecar_uses_restartable_systemd_user_unit(monkeypatch, tmp_path)
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(process.subprocess, "run", fake_run)
+    command = [
+        "/opt/hermes/venv/bin/python",
+        "-I",
+        "-m",
+        "hermes_feishu_card.runner",
+        "--config",
+        "/home/agent/config.yaml",
+        "--systemd-user-service",
+        "--state-dir",
+        str(tmp_path),
+    ]
+
+    assert process._start_systemd_user_sidecar(command) is True
+
+    unit_path = tmp_path / process.SYSTEMD_UNIT_NAME
+    unit_text = unit_path.read_text(encoding="utf-8")
+    assert stat.S_IMODE(unit_path.stat().st_mode) == 0o600
+    assert unit_text.startswith("# Managed by hermes-feishu-streaming-card\n")
+    assert "[Service]\nType=exec\n" in unit_text
+    assert "Restart=on-failure\nRestartSec=2s\n" in unit_text
+    assert "NoNewPrivileges=yes\nUMask=0077\n" in unit_text
+    assert "[Install]\nWantedBy=default.target\n" in unit_text
+    assert "--systemd-user-service" in unit_text
+    assert "--token" not in unit_text
+    assert commands == [
+        [
+            "systemctl",
+            "--user",
+            "enable",
+            "--now",
+            str(unit_path.resolve()),
+        ]
+    ]
+
+
+def test_start_systemd_user_sidecar_refuses_non_private_existing_unit(
+    monkeypatch, tmp_path
+):
+    unit_path = tmp_path / process.SYSTEMD_UNIT_NAME
+    original = process.SYSTEMD_UNIT_MARKER + "\nkeep-existing\n"
+    unit_path.write_text(original, encoding="utf-8")
+    unit_path.chmod(0o644)
+    commands = []
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(process, "log_path", lambda: tmp_path / "sidecar.log")
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda command, **_kwargs: commands.append(list(command))
+        or subprocess.CompletedProcess(command, 0),
+    )
+
+    assert process._start_systemd_user_sidecar(["/usr/bin/python3"]) is False
+    assert commands == []
+    assert unit_path.read_text(encoding="utf-8") == original
+    assert stat.S_IMODE(unit_path.stat().st_mode) == 0o644
+
+
+def test_systemd_user_unit_escapes_dollars_only_in_exec_arguments(
+    monkeypatch, tmp_path
+):
+    private_state = tmp_path / "state$dir"
+    private_state.mkdir()
+    monkeypatch.setattr(process, "state_dir", lambda: private_state)
+    monkeypatch.setattr(
+        process,
+        "log_path",
+        lambda: private_state / "sidecar$log",
+    )
+
+    text = process._systemd_user_unit_text(
+        ["/opt/$runtime/python", "--state-dir", str(private_state)]
+    )
+
+    assert f'WorkingDirectory="{private_state}"' in text
+    assert f'StandardOutput="append:{private_state}/sidecar$log"' in text
+    assert 'ExecStart="/opt/$$runtime/python"' in text
+    assert f'"{str(private_state).replace("$", "$$")}"' in text
+
+
+def test_start_sidecar_uses_runner_owned_systemd_user_identity(
+    monkeypatch, tmp_path
+):
+    config_path = tmp_path / "config.yaml"
+    env_path = tmp_path / "CUSTOM.env"
+    token = "generated-by-systemd-runner"
+    record = {
+        "pid": 4321,
+        "token": token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    records = iter((None, record))
+    health_responses = iter(
+        (
+            None,
+            {
+                "status": "healthy",
+                "process_pid": 4321,
+                "process_token_hash": process.process_token_hash(token),
+            },
+        )
+    )
+    launched: list[list[str]] = []
+    monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
+    monkeypatch.setattr(process, "read_pid_record", lambda: next(records))
+    monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        process,
+        "_start_systemd_user_sidecar",
+        lambda command: launched.append(list(command)) or True,
+    )
+    monkeypatch.setattr(
+        process.secrets,
+        "token_hex",
+        lambda _length: (_ for _ in ()).throw(
+            AssertionError("persistent unit must generate its token at service start")
+        ),
+    )
     monkeypatch.setattr(
         process,
         "write_pid_record",
-        lambda pid, record_token, *, manager, unit: pid_records.append(
-            (pid, record_token, manager, unit)
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("systemd runner owns the persistent pidfile")
         ),
     )
+    monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
+    monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
 
     result = process.start_sidecar(
         config_path,
@@ -747,20 +874,8 @@ def test_start_sidecar_uses_restartable_systemd_user_unit(monkeypatch, tmp_path)
     )
 
     assert result == "started"
-    assert commands == [
+    assert launched == [
         [
-            "systemd-run",
-            "--user",
-            f"--unit={process.SYSTEMD_UNIT_NAME}",
-            "--collect",
-            f"--setenv=HERMES_FEISHU_CARD_STATE_DIR={tmp_path}",
-            f"--property=WorkingDirectory={tmp_path.resolve()}",
-            "--property=Type=exec",
-            "--property=Restart=on-failure",
-            "--property=RestartSec=2s",
-            f"--property=StandardOutput=append:{log_file}",
-            f"--property=StandardError=append:{log_file}",
-            "--",
             process.sys.executable,
             "-I",
             "-m",
@@ -769,11 +884,294 @@ def test_start_sidecar_uses_restartable_systemd_user_unit(monkeypatch, tmp_path)
             str(config_path),
             "--env-file",
             str(env_path),
-            "--token",
-            token,
+            "--systemd-user-service",
+            "--state-dir",
+            str(tmp_path.resolve()),
         ]
     ]
-    assert pid_records == [(4321, token, "systemd-user", process.SYSTEMD_UNIT_NAME)]
+
+
+def test_start_sidecar_migrates_same_version_transient_user_unit(
+    monkeypatch, tmp_path
+):
+    old_token = "transient-token"
+    new_token = "persistent-token"
+    old_record = {
+        "pid": 1234,
+        "token": old_token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_record = {
+        "pid": 4321,
+        "token": new_token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    old_health = {
+        "status": "healthy",
+        "process_pid": 1234,
+        "process_token_hash": process.process_token_hash(old_token),
+        "package_version": "4.2.5",
+    }
+    new_health = {
+        "status": "healthy",
+        "process_pid": 4321,
+        "process_token_hash": process.process_token_hash(new_token),
+        "package_version": "4.2.5",
+    }
+    records = iter((old_record, new_record))
+    health_responses = iter((old_health, old_health, new_health))
+    stopped = []
+    launched = []
+    monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
+    monkeypatch.setattr(process, "read_pid_record", lambda: next(records))
+    monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
+    monkeypatch.setattr(
+        process,
+        "_systemd_user_service_enabled",
+        lambda: False,
+        raising=False,
+    )
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        process,
+        "_stop_owned_record",
+        lambda record, _config: stopped.append(record) or "stopped",
+    )
+    monkeypatch.setattr(process, "clear_pid", lambda: None)
+    monkeypatch.setattr(
+        process,
+        "_start_systemd_user_sidecar",
+        lambda command: launched.append(command) or True,
+    )
+    monkeypatch.setattr(
+        process.secrets,
+        "token_hex",
+        lambda _length: (_ for _ in ()).throw(
+            AssertionError("persistent unit must generate its token")
+        ),
+    )
+    monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
+    monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
+
+    result = process.start_sidecar(
+        tmp_path / "config.yaml",
+        {
+            "server": {"host": "127.0.0.1", "port": 8765},
+            "service": {"manager": "systemd-user"},
+        },
+        expected_package_version="4.2.5",
+    )
+
+    assert result == "started"
+    assert stopped == [old_record]
+    assert len(launched) == 1
+
+
+def test_systemd_user_service_enabled_requires_private_managed_unit(
+    monkeypatch, tmp_path
+):
+    unit_path = tmp_path / process.SYSTEMD_UNIT_NAME
+    unit_path.write_text(
+        process.SYSTEMD_UNIT_MARKER + "\n[Install]\nWantedBy=default.target\n",
+        encoding="utf-8",
+    )
+    unit_path.chmod(0o644)
+    commands = []
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+
+    def fake_run(command, **kwargs):
+        commands.append(list(command))
+        assert kwargs["stdout"] is subprocess.DEVNULL
+        assert kwargs["stderr"] is subprocess.DEVNULL
+        assert kwargs["timeout"] == 3
+        assert kwargs["check"] is False
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(process.subprocess, "run", fake_run)
+
+    assert process._systemd_user_service_enabled() is False
+    assert commands == []
+
+    unit_path.chmod(0o600)
+    assert process._systemd_user_service_enabled() is True
+    assert commands == [
+        [
+            "systemctl",
+            "--user",
+            "--quiet",
+            "is-enabled",
+            process.SYSTEMD_UNIT_NAME,
+        ]
+    ]
+
+
+def test_start_sidecar_recovers_stopped_persistent_user_service_in_auto_mode(
+    monkeypatch, tmp_path
+):
+    old_record = {
+        "pid": 1234,
+        "token": "stopped-token",
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_record = {
+        "pid": 4321,
+        "token": "restarted-token",
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_health = {
+        "status": "healthy",
+        "process_pid": 4321,
+        "process_token_hash": process.process_token_hash("restarted-token"),
+    }
+    records = iter((old_record, new_record))
+    health_responses = iter((None, new_health))
+    stopped = []
+    launched = []
+    monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
+    monkeypatch.setattr(process, "read_pid_record", lambda: next(records))
+    monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
+    monkeypatch.setattr(process, "_systemd_user_service_enabled", lambda: True)
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        process,
+        "_stop_owned_record",
+        lambda record, _config: stopped.append(record) or "stopped",
+    )
+    monkeypatch.setattr(process, "clear_pid", lambda: None)
+    monkeypatch.setattr(
+        process,
+        "_start_systemd_user_sidecar",
+        lambda command: launched.append(command) or True,
+    )
+    monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
+    monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
+
+    result = process.start_sidecar(
+        tmp_path / "config.yaml",
+        {
+            "server": {"host": "127.0.0.1", "port": 8765},
+            "service": {"manager": "auto"},
+        },
+    )
+
+    assert result == "started"
+    assert stopped == [old_record]
+    assert len(launched) == 1
+
+
+def test_start_sidecar_migrates_stale_transient_user_record_in_auto_mode(
+    monkeypatch, tmp_path
+):
+    old_record = {
+        "pid": 1234,
+        "token": "stale-transient-token",
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_record = {
+        "pid": 4321,
+        "token": "persistent-token",
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_health = {
+        "status": "healthy",
+        "process_pid": 4321,
+        "process_token_hash": process.process_token_hash("persistent-token"),
+    }
+    records = iter((old_record, new_record))
+    health_responses = iter((None, new_health))
+    launched = []
+    cleared = []
+    monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
+    monkeypatch.setattr(process, "read_pid_record", lambda: next(records))
+    monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
+    monkeypatch.setattr(process, "_systemd_user_service_enabled", lambda: False)
+    monkeypatch.setattr(process, "pid_is_running", lambda _pid: False)
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(process, "clear_pid", lambda: cleared.append(True))
+    monkeypatch.setattr(
+        process,
+        "_stop_owned_record",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("dead transient PID must not be signalled")
+        ),
+    )
+    monkeypatch.setattr(
+        process,
+        "_start_systemd_user_sidecar",
+        lambda command: launched.append(command) or True,
+    )
+    monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
+    monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
+
+    result = process.start_sidecar(
+        tmp_path / "config.yaml",
+        {
+            "server": {"host": "127.0.0.1", "port": 8765},
+            "service": {"manager": "auto"},
+        },
+    )
+
+    assert result == "started"
+    assert cleared == [True]
+    assert len(launched) == 1
+
+
+def test_uninstall_systemd_user_service_disables_and_removes_managed_unit(
+    monkeypatch, tmp_path
+):
+    unit_path = tmp_path / process.SYSTEMD_UNIT_NAME
+    unit_path.write_text(
+        process.SYSTEMD_UNIT_MARKER + "\n[Install]\nWantedBy=default.target\n",
+        encoding="utf-8",
+    )
+    unit_path.chmod(0o600)
+    commands = []
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+
+    def fake_run(command, **kwargs):
+        commands.append(list(command))
+        assert kwargs["stdout"] is subprocess.DEVNULL
+        assert kwargs["stderr"] is subprocess.DEVNULL
+        assert kwargs["timeout"] == 10
+        assert kwargs["check"] is False
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(process.subprocess, "run", fake_run)
+
+    assert process.uninstall_systemd_user_service() == "removed"
+    assert not unit_path.exists()
+    assert commands == [
+        [
+            "systemctl",
+            "--user",
+            "disable",
+            "--now",
+            process.SYSTEMD_UNIT_NAME,
+        ],
+        ["systemctl", "--user", "daemon-reload"],
+    ]
+
+
+def test_disable_systemd_user_sidecar_refuses_unowned_unit_name(
+    monkeypatch, tmp_path
+):
+    commands = []
+    monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        process.subprocess,
+        "run",
+        lambda command, **_kwargs: commands.append(list(command))
+        or subprocess.CompletedProcess(command, 0),
+    )
+
+    assert process._disable_systemd_user_sidecar(process.SYSTEMD_UNIT_NAME) is False
+    assert commands == []
 
 
 def test_systemd_start_rejects_boolean_health_pid(monkeypatch, tmp_path):
@@ -788,7 +1186,7 @@ def test_systemd_start_rejects_boolean_health_pid(monkeypatch, tmp_path):
             },
         )
     )
-    stopped: list[str] = []
+    disabled: list[str] = []
     written: list[bool] = []
 
     monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
@@ -799,7 +1197,15 @@ def test_systemd_start_rejects_boolean_health_pid(monkeypatch, tmp_path):
     monkeypatch.setattr(
         process,
         "_stop_systemd_user_sidecar",
-        lambda unit: stopped.append(unit) or True,
+        lambda _unit: (_ for _ in ()).throw(
+            AssertionError("failed persistent start must be disabled")
+        ),
+    )
+    monkeypatch.setattr(
+        process,
+        "_disable_systemd_user_sidecar",
+        lambda unit: disabled.append(unit) or True,
+        raising=False,
     )
     monkeypatch.setattr(
         process,
@@ -820,7 +1226,7 @@ def test_systemd_start_rejects_boolean_health_pid(monkeypatch, tmp_path):
 
     assert result == "failed: health check timed out"
     assert written == []
-    assert stopped == [process.SYSTEMD_UNIT_NAME]
+    assert disabled == [process.SYSTEMD_UNIT_NAME]
 
 
 def test_detached_start_timeout_never_signals_unmatched_health_pid(
@@ -1028,7 +1434,15 @@ def test_start_sidecar_migrates_owned_process_into_systemd_unit(monkeypatch, tmp
         "process_pid": 4321,
         "process_token_hash": process.process_token_hash(new_token),
     }
+    old_record = {"pid": 1234, "token": old_token, "manager": "detached"}
+    new_record = {
+        "pid": 4321,
+        "token": new_token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
     health_responses = iter((old_health, old_health, None, new_health))
+    record_responses = iter((old_record, new_record))
     stopped: list[int] = []
     shutdowns: list[str] = []
     cleared: list[bool] = []
@@ -1039,7 +1453,7 @@ def test_start_sidecar_migrates_owned_process_into_systemd_unit(monkeypatch, tmp
     monkeypatch.setattr(
         process,
         "read_pid_record",
-        lambda: {"pid": 1234, "token": old_token},
+        lambda: next(record_responses),
     )
     monkeypatch.setattr(process, "stop_pid", lambda pid: stopped.append(pid))
     monkeypatch.setattr(
@@ -1050,11 +1464,23 @@ def test_start_sidecar_migrates_owned_process_into_systemd_unit(monkeypatch, tmp
     monkeypatch.setattr(process, "pid_is_running", lambda _pid: False)
     monkeypatch.setattr(process, "clear_pid", lambda: cleared.append(True))
     monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
-    monkeypatch.setattr(process.secrets, "token_hex", lambda _length: new_token)
+    monkeypatch.setattr(
+        process.secrets,
+        "token_hex",
+        lambda _length: (_ for _ in ()).throw(
+            AssertionError("persistent unit must generate its token")
+        ),
+    )
     monkeypatch.setattr(process, "_start_systemd_user_sidecar", lambda command: launched.append(command) or True)
     monkeypatch.setattr(process.time, "monotonic", iter((0, 0, 0, 0)).__next__)
     monkeypatch.setattr(process.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(process, "write_pid_record", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        process,
+        "write_pid_record",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("systemd runner owns the persistent pidfile")
+        ),
+    )
 
     result = process.start_sidecar(
         tmp_path / "config.yaml",
@@ -1345,6 +1771,19 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
 ):
     old_token = "old-systemd-token"
     new_token = "new-systemd-token"
+    old_record = {
+        "pid": 1234,
+        "token": old_token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    new_record = {
+        "pid": 4321,
+        "token": new_token,
+        "manager": "systemd-user",
+        "unit": process.SYSTEMD_UNIT_NAME,
+    }
+    record_responses = iter((old_record, new_record))
     health_responses = iter(
         (
             None,
@@ -1357,7 +1796,6 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
     )
     stopped: list[tuple[str, str]] = []
     launched: list[list[str]] = []
-    records: list[tuple[int, str, str, str]] = []
     cleared: list[bool] = []
     monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
     monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
@@ -1365,12 +1803,7 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
     monkeypatch.setattr(
         process,
         "read_pid_record",
-        lambda: {
-            "pid": 1234,
-            "token": old_token,
-            "manager": "systemd-user",
-            "unit": process.SYSTEMD_UNIT_NAME,
-        },
+        lambda: next(record_responses),
     )
     monkeypatch.setattr(
         process,
@@ -1383,13 +1816,19 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
         lambda command: launched.append(command) or True,
     )
     monkeypatch.setattr(process, "clear_pid", lambda: cleared.append(True))
-    monkeypatch.setattr(process.secrets, "token_hex", lambda _length: new_token)
+    monkeypatch.setattr(
+        process.secrets,
+        "token_hex",
+        lambda _length: (_ for _ in ()).throw(
+            AssertionError("persistent unit must generate its token")
+        ),
+    )
     monkeypatch.setattr(process.time, "monotonic", iter((0, 0)).__next__)
     monkeypatch.setattr(
         process,
         "write_pid_record",
-        lambda pid, token, *, manager, unit: records.append(
-            (pid, token, manager, unit)
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("systemd runner owns the persistent pidfile")
         ),
     )
 
@@ -1405,9 +1844,6 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
     assert stopped == [("systemd-user", process.SYSTEMD_UNIT_NAME)]
     assert cleared == [True]
     assert len(launched) == 1
-    assert records == [
-        (4321, new_token, "systemd-user", process.SYSTEMD_UNIT_NAME)
-    ]
 
 
 def test_start_sidecar_recovers_explicit_systemd_system_when_health_is_unavailable(
@@ -1480,7 +1916,7 @@ def test_start_sidecar_recovers_explicit_systemd_system_when_health_is_unavailab
     assert records == [(5432, new_token, "systemd-system", unit)]
 
 
-def test_start_sidecar_auto_does_not_recover_systemd_without_health(
+def test_start_sidecar_auto_refuses_live_systemd_pid_without_health(
     monkeypatch, tmp_path
 ):
     stopped: list[tuple[str, str]] = []
@@ -1488,6 +1924,7 @@ def test_start_sidecar_auto_does_not_recover_systemd_without_health(
     monkeypatch.setattr(process, "fetch_health", lambda _config: None)
     monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
     monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(process, "pid_is_running", lambda _pid: True)
     monkeypatch.setattr(
         process,
         "read_pid_record",

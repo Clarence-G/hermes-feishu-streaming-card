@@ -28,6 +28,14 @@ BACKUP_NAME = "run.py.hermes_feishu_card.bak"
 MANIFEST_NAME = ".hermes_feishu_card_manifest"
 
 
+@pytest.fixture(autouse=True)
+def isolate_sidecar_state(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "HERMES_FEISHU_CARD_STATE_DIR",
+        str(tmp_path / "hermes-feishu-card-state"),
+    )
+
+
 def run_cli(*args):
     env = dict(os.environ)
     return subprocess.run(
@@ -2733,6 +2741,34 @@ def test_uninstall_restores_installed_fixture(tmp_path):
     assert run_py(hermes_dir).read_text(encoding="utf-8") == original
     assert not backup_path(hermes_dir).exists()
     assert not manifest_path(hermes_dir).exists()
+
+
+def test_uninstall_removes_persistent_systemd_user_service(
+    monkeypatch, tmp_path, capsys
+):
+    actions = []
+    monkeypatch.setattr(
+        cli,
+        "_restore",
+        lambda hermes_dir: actions.append(("restore", hermes_dir)),
+    )
+    monkeypatch.setattr(
+        cli,
+        "uninstall_systemd_user_service",
+        lambda: actions.append(("service", None)) or "removed",
+        raising=False,
+    )
+
+    result = cli._run_uninstall(
+        Namespace(hermes_dir=str(tmp_path / "hermes"), yes=True)
+    )
+
+    assert result == 0
+    assert actions == [
+        ("restore", tmp_path / "hermes"),
+        ("service", None),
+    ]
+    assert "service: removed" in capsys.readouterr().out
 
 
 def test_install_unsupported_hermes_dir_returns_nonzero(tmp_path):

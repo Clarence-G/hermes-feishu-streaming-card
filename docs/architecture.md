@@ -28,7 +28,7 @@ Hermes hook 到 sidecar `/events` 的 fail-open 转发链路已经落地：sidec
 
 ### HTTP sidecar
 
-`hermes_feishu_card.server` 接收事件，按 profile、bot、message/reply anchor 管理 `CardSession`，把高频 delta 合并成有限 PATCH，并在 terminal 前排空待发送内容。`hermes_feishu_card.cli start/status/stop` 管理本机进程；停止时同时校验 pidfile PID/token 和 `/health` 的 `process_pid/process_token_hash`，避免 PID 复用误杀。独立进程和 systemd user service 生命周期主要面向 macOS/Linux 等 POSIX 环境。
+`hermes_feishu_card.server` 接收事件，按 profile、bot、message/reply anchor 管理 `CardSession`，把高频 delta 合并成有限 PATCH，并在 terminal 前排空待发送内容。`hermes_feishu_card.cli start/status/stop` 管理本机进程；停止时同时校验 pidfile PID/token 和 `/health` 的 `process_pid/process_token_hash`，避免 PID 复用误杀。Linux user manager 可用时，`auto` 安装并 enable state dir 内的私有持久 user unit；runner 每次 systemd 启动都重新生成进程身份。其他 POSIX 环境继续使用 owned detached process。
 
 `/health` 只暴露脱敏、hash 化和 process-local 的状态，包括事件、事件鉴权拒绝、卡片发送/更新、cleanup 和路由指标。`send_card` 不盲目重试，避免重复创建卡片；已有 message id 的更新采用有限重试。
 

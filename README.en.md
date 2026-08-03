@@ -103,7 +103,7 @@ service:
   manager: auto
 ```
 
-`native_chats` uses exact matching only; in multi-profile setups place it under the matching `profiles.<id>.bindings`. Existing configs without an `integrity` section load as `notify` and do not silently enable automatic repair. See [V4.1 safety controls and troubleshooting](docs/wiki/v4.1-safety-controls.md) for the complete boundary.
+`native_chats` uses exact matching only; in multi-profile setups place it under the matching `profiles.<id>.bindings`. Existing configs without an `integrity` section load as `notify` and do not silently enable automatic repair. On Linux, `service.manager: auto` prefers an owned persistent `systemd --user` unit and enables it to start with the user manager. `stop` stops only the current instance; `uninstall` disables and removes the managed unit. An administrator may explicitly enable login lingering when a headless host must start it before login; HFC never runs `loginctl enable-linger` or sudo automatically. See [V4.1 safety controls and troubleshooting](docs/wiki/v4.1-safety-controls.md) for the complete boundary.
 
 To show remaining Codex subscription quota, add `subscription_usage` to `footer_fields`. The plugin calls Hermes native `fetch_account_usage("openai-codex")` only when explicitly enabled; older Hermes versions, missing login, or network failures silently omit the field without affecting card completion. `card.text_sizes` can configure `body`, `reasoning`, `tool`, `notice`, and `footer`, including `default` / `pc` / `mobile` device mappings; physical card width/height remain controlled by the Feishu/Lark client.
 
@@ -166,7 +166,7 @@ Defaults:
 | `repair --hermes-dir ... --yes` | Repair verifiable hook manifest/backup state |
 | `setup --repair ... --yes` / `--no-repair` | Automatically repair known-safe state, or explicitly opt out |
 | `restore --hermes-dir ... --yes` | Restore the original Hermes file |
-| `start --config ...` / `status --config ...` / `stop --config ...` | Manage the sidecar process and `/health`; Linux/systemd uses an independent user service |
+| `start --config ...` / `status --config ...` / `stop --config ...` | Manage the sidecar process and `/health`; Linux/systemd uses an enabled persistent user service |
 | `smoke-feishu-card --profile-id ... --chat-id ...` | Send a real Feishu card smoke test |
 | `bots list|show|add|remove|test` | Manage and test multi-bot routing |
 

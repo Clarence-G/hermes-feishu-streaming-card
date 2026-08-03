@@ -24,6 +24,7 @@ CONTROL_SHUTDOWN_PATH = "/control/shutdown"
 CONTROL_TOKEN_HEADER = "X-HFC-Process-Token"
 DETACHED_PIDFILE_HANDSHAKE_SECONDS = 5.0
 SYSTEMD_UNIT_NAME = "hermes-feishu-card-sidecar.service"
+SYSTEMD_UNIT_MARKER = "# Managed by hermes-feishu-streaming-card"
 SERVICE_MANAGER_VALUES = frozenset(
     {"auto", "systemd-user", "systemd-system", "detached"}
 )
@@ -93,6 +94,9 @@ def start_sidecar(
     state_error = _prepare_private_state_dir()
     if state_error:
         return state_error
+    selected_service_ready = (
+        selected_manager != "systemd-user" or _systemd_user_service_enabled()
+    )
     health = fetch_health(config)
     record = read_pid_record()
     record_path = pid_path()
@@ -112,6 +116,7 @@ def start_sidecar(
             return "failed: running sidecar identity mismatch; migration refused"
         if (
             _record_manager(record) == selected_manager
+            and selected_service_ready
             and _health_matches_expected_identity(
                 health,
                 expected_package_version=expected_package_version,
@@ -126,6 +131,7 @@ def start_sidecar(
             return "failed: running sidecar changed before stop"
         if (
             _record_manager(record) == selected_manager
+            and selected_service_ready
             and _health_matches_expected_identity(
                 current_health,
                 expected_package_version=expected_package_version,
@@ -144,8 +150,22 @@ def start_sidecar(
     elif record is not None:
         record_manager = _record_manager(record)
         if (
+            record_manager == "systemd-user"
+            and selected_manager == record_manager
+            and not selected_service_ready
+            and not pid_is_running(record["pid"])
+        ):
+            clear_pid()
+        elif (
             record_manager in {"systemd-user", "systemd-system"}
-            and _explicit_systemd_manager(config) == record_manager
+            and (
+                _explicit_systemd_manager(config) == record_manager
+                or (
+                    record_manager == "systemd-user"
+                    and selected_manager == record_manager
+                    and selected_service_ready
+                )
+            )
         ):
             if _stop_owned_record(record, config) != "stopped":
                 return "failed: owned systemd sidecar could not be stopped for recovery"
@@ -155,7 +175,7 @@ def start_sidecar(
         else:
             clear_pid()
 
-    token = secrets.token_hex(16)
+    token = "" if selected_manager == "systemd-user" else secrets.token_hex(16)
     command = _sidecar_command(
         config_path,
         env_file=env_file,
@@ -163,6 +183,7 @@ def start_sidecar(
         hermes_dir=hermes_dir,
         managed_pidfile=selected_manager == "detached",
         python_executable=python_executable,
+        systemd_user_service=selected_manager == "systemd-user",
     )
 
     if selected_manager in {"systemd-user", "systemd-system"}:
@@ -177,32 +198,54 @@ def start_sidecar(
                 "verify explicit caller permission"
             )
         if not started:
+            if selected_manager == "systemd-user":
+                _disable_systemd_user_sidecar(unit)
             return failure
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             health = fetch_health(config)
+            systemd_record = (
+                read_pid_record() if selected_manager == "systemd-user" else None
+            )
             if (
                 health is not None
-                and _health_matches_token(health, token)
+                and (
+                    (
+                        systemd_record is not None
+                        and _record_identity_valid(systemd_record)
+                        and _record_manager(systemd_record) == "systemd-user"
+                        and systemd_record.get("unit") == unit
+                        and _record_matches_health(systemd_record, health)
+                    )
+                    if selected_manager == "systemd-user"
+                    else _health_matches_token(health, token)
+                )
                 and _health_matches_expected_identity(
                     health,
                     expected_package_version=expected_package_version,
                     expected_python_identity=expected_python_identity,
                 )
             ):
-                try:
-                    write_pid_record(
-                        health["process_pid"],
-                        token,
-                        manager=selected_manager,
-                        unit=unit,
-                    )
-                except (OSError, ValueError) as exc:
-                    _stop_systemd_sidecar(selected_manager, unit)
-                    return f"failed: pidfile could not be written: {exc.__class__.__name__}"
+                if selected_manager == "systemd-system":
+                    try:
+                        write_pid_record(
+                            health["process_pid"],
+                            token,
+                            manager=selected_manager,
+                            unit=unit,
+                        )
+                    except (OSError, ValueError) as exc:
+                        _stop_systemd_sidecar(selected_manager, unit)
+                        return (
+                            "failed: pidfile could not be written: "
+                            f"{exc.__class__.__name__}"
+                        )
                 return "started"
             time.sleep(0.1)
-        _stop_systemd_sidecar(selected_manager, unit)
+        if selected_manager == "systemd-user":
+            _disable_systemd_user_sidecar(unit)
+        else:
+            _stop_systemd_sidecar(selected_manager, unit)
         clear_pid()
         return "failed: health check timed out"
 
@@ -574,6 +617,7 @@ def _sidecar_command(
     hermes_dir: str | Path | None = None,
     managed_pidfile: bool = False,
     python_executable: str | Path | None = None,
+    systemd_user_service: bool = False,
 ) -> list[str]:
     resolved_config = Path(config_path).expanduser().resolve(strict=False)
     selected_python = (
@@ -597,7 +641,16 @@ def _sidecar_command(
         command.extend(("--hermes-dir", str(resolved_hermes_dir)))
     if managed_pidfile:
         command.append("--managed-pidfile")
-    command.extend(("--token", token))
+    if systemd_user_service:
+        command.extend(
+            (
+                "--systemd-user-service",
+                "--state-dir",
+                _private_state_working_directory(),
+            )
+        )
+    if token:
+        command.extend(("--token", token))
     return command
 
 
@@ -849,7 +902,7 @@ def _systemd_system_unit_name() -> str:
 def _systemd_user_available() -> bool:
     if not sys.platform.startswith("linux"):
         return False
-    if shutil.which("systemd-run") is None or shutil.which("systemctl") is None:
+    if shutil.which("systemctl") is None:
         return False
     try:
         result = subprocess.run(
@@ -920,23 +973,17 @@ def _explicit_systemd_manager(config: dict[str, dict[str, Any]]) -> str:
 
 
 def _start_systemd_user_sidecar(command: list[str]) -> bool:
-    log_file = log_path()
+    unit_path = _systemd_user_unit_path()
+    if not _write_systemd_user_unit(unit_path, command):
+        return False
     try:
         result = subprocess.run(
             [
-                "systemd-run",
+                "systemctl",
                 "--user",
-                f"--unit={SYSTEMD_UNIT_NAME}",
-                "--collect",
-                _systemd_state_environment_arg(),
-                _systemd_working_directory_arg(),
-                "--property=Type=exec",
-                "--property=Restart=on-failure",
-                "--property=RestartSec=2s",
-                f"--property=StandardOutput=append:{log_file}",
-                f"--property=StandardError=append:{log_file}",
-                "--",
-                *command,
+                "enable",
+                "--now",
+                str(unit_path.resolve(strict=False)),
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -946,6 +993,203 @@ def _start_systemd_user_sidecar(command: list[str]) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+def _systemd_user_service_enabled() -> bool:
+    unit_path = _systemd_user_unit_path()
+    try:
+        if unit_path.is_symlink() or not unit_path.is_file():
+            return False
+        metadata = unit_path.stat()
+        getuid = getattr(os, "getuid", None)
+        if callable(getuid) and metadata.st_uid != getuid():
+            return False
+        if (
+            _supports_posix_state_permissions()
+            and stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            return False
+        if not unit_path.read_text(encoding="utf-8").startswith(
+            SYSTEMD_UNIT_MARKER + "\n"
+        ):
+            return False
+        result = subprocess.run(
+            [
+                "systemctl",
+                "--user",
+                "--quiet",
+                "is-enabled",
+                SYSTEMD_UNIT_NAME,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, UnicodeError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def uninstall_systemd_user_service() -> str:
+    unit_path = _systemd_user_unit_path()
+    try:
+        if not unit_path.exists() and not unit_path.is_symlink():
+            return "not installed"
+        if unit_path.is_symlink() or not unit_path.is_file():
+            return "failed: managed systemd user unit is invalid"
+        before = unit_path.stat()
+        getuid = getattr(os, "getuid", None)
+        if callable(getuid) and before.st_uid != getuid():
+            return "failed: managed systemd user unit is invalid"
+        if (
+            _supports_posix_state_permissions()
+            and stat.S_IMODE(before.st_mode) != 0o600
+        ):
+            return "failed: managed systemd user unit is invalid"
+        if not unit_path.read_text(encoding="utf-8").startswith(
+            SYSTEMD_UNIT_MARKER + "\n"
+        ):
+            return "failed: managed systemd user unit is not owned"
+        disabled = subprocess.run(
+            [
+                "systemctl",
+                "--user",
+                "disable",
+                "--now",
+                SYSTEMD_UNIT_NAME,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+        if disabled.returncode != 0:
+            return "failed: managed systemd user service could not be disabled"
+        after = unit_path.stat()
+        if (
+            before.st_dev != after.st_dev
+            or before.st_ino != after.st_ino
+            or before.st_uid != after.st_uid
+            or before.st_mode != after.st_mode
+        ):
+            return "failed: managed systemd user unit changed during uninstall"
+        unit_path.unlink()
+        reloaded = subprocess.run(
+            ["systemctl", "--user", "daemon-reload"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+        if reloaded.returncode != 0:
+            return "failed: systemd user manager could not reload after uninstall"
+    except (OSError, UnicodeError, subprocess.SubprocessError):
+        return "failed: managed systemd user service could not be uninstalled"
+    record = read_pid_record()
+    if (
+        record is not None
+        and _record_identity_valid(record)
+        and _record_manager(record) == "systemd-user"
+        and record.get("unit") == SYSTEMD_UNIT_NAME
+    ):
+        clear_pid()
+    return "removed"
+
+
+def _systemd_user_unit_path() -> Path:
+    return state_dir().expanduser().resolve(strict=False) / SYSTEMD_UNIT_NAME
+
+
+def _systemd_quote(value: str, *, command_argument: bool = False) -> str:
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("%", "%%")
+    )
+    if command_argument:
+        escaped = escaped.replace("$", "$$")
+    return f'"{escaped}"'
+
+
+def _systemd_user_unit_text(command: list[str]) -> str:
+    working_directory = _private_state_working_directory()
+    log_file = str(log_path().expanduser().resolve(strict=False))
+    exec_start = " ".join(
+        _systemd_quote(argument, command_argument=True) for argument in command
+    )
+    return "\n".join(
+        (
+            SYSTEMD_UNIT_MARKER,
+            "[Unit]",
+            "Description=Hermes Feishu Card sidecar",
+            "",
+            "[Service]",
+            "Type=exec",
+            f"WorkingDirectory={_systemd_quote(working_directory)}",
+            f"ExecStart={exec_start}",
+            "Restart=on-failure",
+            "RestartSec=2s",
+            "NoNewPrivileges=yes",
+            "UMask=0077",
+            f"StandardOutput={_systemd_quote(f'append:{log_file}')}",
+            f"StandardError={_systemd_quote(f'append:{log_file}')}",
+            "",
+            "[Install]",
+            "WantedBy=default.target",
+            "",
+        )
+    )
+
+
+def _write_systemd_user_unit(path: Path, command: list[str]) -> bool:
+    try:
+        if path.is_symlink():
+            return False
+        if path.exists():
+            metadata = path.stat()
+            if not stat.S_ISREG(metadata.st_mode):
+                return False
+            getuid = getattr(os, "getuid", None)
+            if callable(getuid) and metadata.st_uid != getuid():
+                return False
+            if (
+                _supports_posix_state_permissions()
+                and stat.S_IMODE(metadata.st_mode) != 0o600
+            ):
+                return False
+            if not path.read_text(encoding="utf-8").startswith(
+                SYSTEMD_UNIT_MARKER + "\n"
+            ):
+                return False
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+        )
+        temporary = Path(temporary_name)
+        try:
+            fchmod = getattr(os, "fchmod", None)
+            if callable(fchmod):
+                fchmod(descriptor, 0o600)
+            handle = os.fdopen(descriptor, "w", encoding="utf-8")
+            descriptor = -1
+            with handle:
+                handle.write(_systemd_user_unit_text(command))
+                handle.flush()
+                os.fsync(handle.fileno())
+            if path.is_symlink():
+                return False
+            os.replace(temporary, path)
+            path.chmod(0o600)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            temporary.unlink(missing_ok=True)
+    except (OSError, UnicodeError):
+        return False
+    return True
 
 
 def _start_systemd_system_sidecar(command: list[str], unit: str) -> bool:
@@ -1009,6 +1253,38 @@ def _stop_systemd_user_sidecar(unit: str) -> bool:
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+def _disable_systemd_user_sidecar(unit: str) -> bool:
+    if unit != SYSTEMD_UNIT_NAME:
+        return False
+    try:
+        unit_path = _systemd_user_unit_path()
+        if unit_path.is_symlink() or not unit_path.is_file():
+            return False
+        metadata = unit_path.stat()
+        getuid = getattr(os, "getuid", None)
+        if callable(getuid) and metadata.st_uid != getuid():
+            return False
+        if (
+            _supports_posix_state_permissions()
+            and stat.S_IMODE(metadata.st_mode) != 0o600
+        ):
+            return False
+        if not unit_path.read_text(encoding="utf-8").startswith(
+            SYSTEMD_UNIT_MARKER + "\n"
+        ):
+            return False
+        result = subprocess.run(
+            ["systemctl", "--user", "disable", "--now", unit],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, UnicodeError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
 

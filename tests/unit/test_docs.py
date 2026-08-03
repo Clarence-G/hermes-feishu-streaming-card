@@ -3182,3 +3182,30 @@ def test_v425_docs_map_every_audit_fix_and_release_gate():
     for text in (notes, notes_en):
         for asset in assets:
             assert asset in text
+
+
+def test_issue_183_documents_persistent_user_service_and_operator_boundary():
+    readme = read_doc("README.md")
+    readme_en = read_doc("README.en.md")
+    guide = read_doc("docs/user-guide.md")
+    guide_en = read_doc("docs/user-guide.en.md")
+    migration = read_doc("docs/migration.md")
+    migration_en = read_doc("docs/migration.en.md")
+    changelog = read_doc("CHANGELOG.md")
+    todo = read_doc("TODO.md")
+    config = read_doc("config.yaml.example")
+
+    for text in (readme, guide, migration):
+        assert "持久" in text
+        assert "login lingering" in text
+        assert "不自动" in text
+    for text in (readme_en, guide_en, migration_en):
+        assert "persistent" in text
+        assert "login lingering" in text
+        assert "never" in text
+
+    assert "Issue #183" in changelog
+    assert "Issue #183" in todo
+    assert "宿主机重启" in todo
+    assert "persistent" in config
+    assert "never" in config

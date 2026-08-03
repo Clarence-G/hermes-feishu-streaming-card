@@ -4,6 +4,8 @@ import argparse
 from dataclasses import dataclass
 import logging
 import os
+from pathlib import Path
+import secrets
 import sys
 from typing import Any
 
@@ -21,7 +23,13 @@ from .operations_transport import (
     ensure_transport_root_secret,
     transport_root_privacy_verified,
 )
-from .process import local_control_host, state_dir, wait_for_managed_pidfile
+from .process import (
+    SYSTEMD_UNIT_NAME,
+    local_control_host,
+    state_dir,
+    wait_for_managed_pidfile,
+    write_pid_record,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +37,10 @@ logger = logging.getLogger(__name__)
 
 def _request_process_shutdown() -> None:
     raise web.GracefulExit()
+
+
+def generate_process_token() -> str:
+    return secrets.token_hex(16)
 
 
 def _listener_hosts(configured_host: str) -> str | list[str]:
@@ -214,7 +226,38 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hermes-dir")
     parser.add_argument("--token", default="")
     parser.add_argument("--managed-pidfile", action="store_true")
+    parser.add_argument("--systemd-user-service", action="store_true")
+    parser.add_argument("--state-dir")
     args = parser.parse_args(argv)
+
+    if args.systemd_user_service:
+        if args.managed_pidfile or args.token or not args.state_dir:
+            logger.error("Invalid managed systemd user service arguments.")
+            return 1
+        configured_state_dir = Path(args.state_dir).expanduser()
+        if not configured_state_dir.is_absolute() or ".." in configured_state_dir.parts:
+            logger.error("Managed systemd user service state directory is invalid.")
+            return 1
+        try:
+            resolved_state_dir = configured_state_dir.resolve(strict=True)
+        except (OSError, RuntimeError):
+            logger.error("Managed systemd user service state directory is unavailable.")
+            return 1
+        os.environ["HERMES_FEISHU_CARD_STATE_DIR"] = str(resolved_state_dir)
+        args.token = generate_process_token()
+        try:
+            write_pid_record(
+                os.getpid(),
+                args.token,
+                manager="systemd-user",
+                unit=SYSTEMD_UNIT_NAME,
+            )
+        except (OSError, ValueError):
+            logger.error("Managed systemd user service pidfile setup failed.")
+            return 1
+    elif args.state_dir is not None:
+        logger.error("--state-dir requires --systemd-user-service.")
+        return 1
 
     if args.managed_pidfile and not wait_for_managed_pidfile(
         os.getpid(), args.token

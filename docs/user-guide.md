@@ -104,7 +104,7 @@ Issue #162 所述的多机器人群聊需要显式使用原生模式：把目标
 
 新安装写 `integrity.mode: safe`，旧配置缺段时按 `notify` 加载。旧安装显式执行 `integrity migrate-safe --config CONFIG --hermes-dir HERMES_DIR --yes` 后会得到 `sidecar.restart_required: true`、`gateway.restart_required: false`，需要重启 sidecar；若后续 strict repair 重新安装 hook，才会显示 `gateway.restart_required: true`，且 HFC 不自动重启 Gateway。认证 `runtime.hello` / `runtime.heartbeat` 用于区分进程存活与真实发卡 readiness。
 
-`service.manager: auto` 只选择可用的 `systemd-user`，否则使用 `detached`，从不隐式进入 `systemd-system` 或调用 sudo。`systemd-system` 仅 Linux 显式 opt-in 且只用 transient unit；Docker 保持普通容器进程与 `detached`。完整排障见 [V4.1 安全控制与排障](wiki/v4.1-safety-controls.md)。
+`service.manager: auto` 在 Linux user manager 可用时安装并 enable 私有的持久 `systemd-user` unit，否则使用 `detached`；它从不隐式进入 `systemd-system` 或调用 sudo。持久 unit 随 user manager 启动，systemd 重启或宿主机重启后会生成新的私有 process token/pidfile。`stop` 只停止当前实例并保留 enable 状态，`uninstall` 才 disable 并移除 marker-owned unit。无人登录也必须开机运行的服务器可由管理员显式配置 login lingering；HFC 不自动运行 `loginctl enable-linger`。`systemd-system` 仍是仅 Linux 的显式 transient-unit opt-in；Docker 保持普通容器进程与 `detached`。完整排障见 [V4.1 安全控制与排障](wiki/v4.1-safety-controls.md)。
 
 ## V4.0.0 实时双轨卡片
 
@@ -554,7 +554,7 @@ export FEISHU_APP_SECRET=xxx
 python3 -m hermes_feishu_card.cli setup --hermes-dir ~/.hermes/hermes-agent --yes
 ```
 
-`setup` 是整合安装器：自动生成配置、检查 Hermes 版本和代码 anchor、把插件安装到 Hermes Gateway 实际运行的 venv Python、安装 hook、启动 sidecar 并做健康检查。Linux 上若 systemd user manager 可用，sidecar 会进入独立、可自动重启的 transient user service，不再与 `hermes-gateway` 共用 cgroup；macOS、Windows 和无可用 user manager 的环境继续使用 detached-process fallback。它支持 `v2026.4.23` 起的旧版 Hermes，也支持 Hermes 0.13.0+/0.14.0/0.15.x/0.17.x/0.18.x 与 `v2026.5.16+` / `v2026.6.19+` / `v2026.7.1+` 新版 anchor；Hermes `VERSION` 可带或不带 `v` 前缀，也可从 `Hermes Agent v0.18.2 (...)` 这类描述型版本中提取数字版本。V3.8.6 起，Docker/source-stripped 环境缺少 `VERSION` 和 `.git` 时也可用 `gateway/run.py` anchor 兜底识别；当前版本在 `VERSION` 可读但不可解析时，也会在 anchors 可验证后继续安装。
+`setup` 是整合安装器：自动生成配置、检查 Hermes 版本和代码 anchor、把插件安装到 Hermes Gateway 实际运行的 venv Python、安装 hook、启动 sidecar 并做健康检查。Linux 上若 systemd user manager 可用，sidecar 会进入独立、enabled、可自动重启的持久 user service，不再与 `hermes-gateway` 共用 cgroup；旧 transient service 会在下一次官方 setup/start 时迁移。macOS、Windows 和无可用 user manager 的环境继续使用 detached-process fallback。它支持 `v2026.4.23` 起的旧版 Hermes，也支持 Hermes 0.13.0+/0.14.0/0.15.x/0.17.x/0.18.x 与 `v2026.5.16+` / `v2026.6.19+` / `v2026.7.1+` 新版 anchor；Hermes `VERSION` 可带或不带 `v` 前缀，也可从 `Hermes Agent v0.18.2 (...)` 这类描述型版本中提取数字版本。V3.8.6 起，Docker/source-stripped 环境缺少 `VERSION` 和 `.git` 时也可用 `gateway/run.py` anchor 兜底识别；当前版本在 `VERSION` 可读但不可解析时，也会在 anchors 可验证后继续安装。
 
 多 profile 安装后可用 `doctor` 只读检查完整脱敏 route chain；`status` 仅摘要运行时路由和 profile 事件，`/health` 仅报告实际 routing health 字段。`doctor` 输出不包含 App Secret、token 或 URL credentials：
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.2.0.html).
 
+## Next release
+
+### Changed
+- Issue #183: Linux `service.manager: auto` / `systemd-user` now installs and enables an owned persistent user unit instead of launching a transient unit, so the sidecar returns whenever the user manager starts.
+- The persistent runner creates a fresh private process token and pidfile identity on every service start, including systemd restart and host boot; an existing transient unit or dead transient pidfile is migrated on the next official start/setup.
+- `stop` stops the current user service without disabling boot activation; `uninstall` disables and removes only the marker-owned private unit.
+
+### Safety
+- HFC still never invokes sudo, writes `/etc`, enables login lingering, or silently selects `systemd-system`; headless boot before login remains an explicit administrator choice.
+- Existing symlinked, foreign-owned, unmarked, or non-`0600` unit files fail closed instead of being overwritten or removed.
+
 ## V4.2.5 — 2026-08-02
 
 See also: [docs/release-notes-v4.2.5.md](docs/release-notes-v4.2.5.md)

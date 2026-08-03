@@ -96,6 +96,7 @@ from hermes_feishu_card.process import (
     start_sidecar,
     status_sidecar,
     stop_sidecar,
+    uninstall_systemd_user_service,
 )
 from hermes_feishu_card.render import render_card
 from hermes_feishu_card.server import python_executable_identity
@@ -3513,6 +3514,12 @@ def _run_uninstall(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    service_result = uninstall_systemd_user_service()
+    if service_result.startswith("failed:"):
+        print(f"error: {service_result}", file=sys.stderr)
+        return 1
+    if service_result == "removed":
+        print("service: removed")
     print("uninstall ok")
     return 0
 

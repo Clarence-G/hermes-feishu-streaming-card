@@ -44,7 +44,7 @@ python3 -m pytest \
   tests/integration/test_cli_process.py -q
 ```
 
-这组测试覆盖 exact/profile-scoped native policy 与签名/重放、fenced-code-safe table compact/truncate、28,000-byte terminal native handoff、`runtime.hello` / `runtime.heartbeat` readiness、strict safe repair、四种 service manager 和 Docker 非 systemd 边界。loopback aiohttp 测试可能需要在允许绑定本机临时端口的环境运行。自动化不能替代真实 card → native → card、七表格、oversized handoff、Hermes upgrade、Linux manager 与普通 Docker Compose 验收。
+这组测试覆盖 exact/profile-scoped native policy 与签名/重放、fenced-code-safe table compact/truncate、28,000-byte terminal native handoff、`runtime.hello` / `runtime.heartbeat` readiness、strict safe repair、四种 service manager 和 Docker 非 systemd 边界。loopback aiohttp 测试可能需要在允许绑定本机临时端口的环境运行。自动化不能替代真实 card → native → card、七表格、oversized handoff、Hermes upgrade、普通 Docker Compose，以及 Linux user manager 的 enable、logout/login、宿主机 reboot 和显式 linger 验收。
 
 ## V4.0.21 内容完整性回归
 

@@ -135,7 +135,7 @@ hermes-feishu-card integrity migrate-safe \
 
 成功后输出 `sidecar.restart_required: true`、`gateway.restart_required: false`；重启 sidecar 后，认证 `runtime.hello` / `runtime.heartbeat` 才开始按 safe 模式评估。若 strict repair 真的重新安装 hook，状态会改为 `gateway.restart_required: true`，但 HFC 不会自动重启 Gateway。证据不足、用户编辑、symlink、dirty target、branch rewind 或 source-stripped root 都保持 fail-closed。
 
-`service.manager: auto` 只选择 `systemd-user` 或 `detached`，不隐式进入 `systemd-system`，不调用 sudo。`systemd-system` 是 Linux transient unit 的显式 opt-in；Docker 继续用普通容器进程和 `detached`。Hermes 0.19.0 / `v2026.7.20` 使用 AST-owned run + Base hooks；旧 run-only manifest 只有在严格证据下才会补建 Base backup、重打 Base patch 并迁移为 manifest v2。升级覆盖通过 runtime 监控和 strict repair 处理，不安装 import-hook bridge。
+`service.manager: auto` 只选择持久、enabled 的 `systemd-user` unit 或 `detached`，不隐式进入 `systemd-system`，不调用 sudo。升级后下一次官方 setup/start 会把仍在运行的旧 transient service，或宿主机重启后留下的 dead transient pidfile，迁移到持久 unit；无法验证的同名 unit、仍存活但 health 不匹配的 PID 保持 fail-closed。`stop` 不 disable 自启动，`uninstall` 才移除受管 unit。HFC 不自动启用 login lingering；无人登录前启动属于管理员显式配置。`systemd-system` 仍是 Linux transient unit 的显式 opt-in；Docker 继续用普通容器进程和 `detached`。Hermes 0.19.0 / `v2026.7.20` 使用 AST-owned run + Base hooks；旧 run-only manifest 只有在严格证据下才会补建 Base backup、重打 Base patch 并迁移为 manifest v2。升级覆盖通过 runtime 监控和 strict repair 处理，不安装 import-hook bridge。
 
 ## 升级到 V3.4.0
 
