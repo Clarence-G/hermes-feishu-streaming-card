@@ -1800,6 +1800,7 @@ def test_start_sidecar_recovers_explicit_systemd_user_when_health_is_unavailable
     monkeypatch.setattr(process, "fetch_health", lambda _config: next(health_responses))
     monkeypatch.setattr(process, "_systemd_user_available", lambda: True)
     monkeypatch.setattr(process, "state_dir", lambda: tmp_path)
+    monkeypatch.setattr(process, "pid_is_running", lambda _pid: False)
     monkeypatch.setattr(
         process,
         "read_pid_record",

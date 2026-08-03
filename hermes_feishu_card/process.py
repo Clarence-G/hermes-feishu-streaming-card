@@ -152,6 +152,7 @@ def start_sidecar(
         if (
             record_manager == "systemd-user"
             and selected_manager == record_manager
+            and _explicit_systemd_manager(config) != record_manager
             and not selected_service_ready
             and not pid_is_running(record["pid"])
         ):
