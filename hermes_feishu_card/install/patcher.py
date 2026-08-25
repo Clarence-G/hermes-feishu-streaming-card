@@ -1783,13 +1783,7 @@ def _find_exact_base_patch_locations(tree, lines):
     )
     filter_media = _unique_exact_base_node(
         method_nodes,
-        lambda node: _is_exact_assignment_call(
-            node,
-            targets=("media_files",),
-            owner="self",
-            function="filter_media_delivery_paths",
-            args=("media_files",),
-        ),
+        _is_exact_media_filter_assignment,
     )
     extract_images = _unique_exact_base_node(
         method_nodes,
@@ -1821,13 +1815,7 @@ def _find_exact_base_patch_locations(tree, lines):
     )
     filter_local = _unique_exact_base_node(
         method_nodes,
-        lambda node: _is_exact_assignment_call(
-            node,
-            targets=("local_files",),
-            owner="self",
-            function="filter_local_delivery_paths",
-            args=("local_files",),
-        ),
+        _is_exact_local_filter_assignment,
     )
     recovered = _unique_exact_base_node(
         method_nodes,
@@ -2075,6 +2063,50 @@ def _call_function(call):
     if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
         return func.value.id, func.attr
     return None, None
+
+
+def _is_exact_delivery_filter_assignment(
+    node,
+    *,
+    target: str,
+    function: str,
+) -> bool:
+    if _assignment_target_names(node) != (target,):
+        return False
+    call = _assignment_value(node)
+    if not isinstance(call, ast.Call):
+        return False
+    owner, actual_function = _call_function(call)
+    if (
+        owner != "self"
+        or actual_function != function
+        or len(call.args) != 1
+        or not _same_expression(call.args[0], target)
+    ):
+        return False
+    if not call.keywords:
+        return True
+    return (
+        len(call.keywords) == 1
+        and call.keywords[0].arg == "session_key"
+        and _same_expression(call.keywords[0].value, "session_key")
+    )
+
+
+def _is_exact_media_filter_assignment(node) -> bool:
+    return _is_exact_delivery_filter_assignment(
+        node,
+        target="media_files",
+        function="filter_media_delivery_paths",
+    )
+
+
+def _is_exact_local_filter_assignment(node) -> bool:
+    return _is_exact_delivery_filter_assignment(
+        node,
+        target="local_files",
+        function="filter_local_delivery_paths",
+    )
 
 
 def _is_exact_assignment_call(node, *, targets, owner, function, args):

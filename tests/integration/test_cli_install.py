@@ -190,6 +190,31 @@ def make_exact_020_hermes(tmp_path):
     return hermes_dir
 
 
+def make_exact_2026_8_25_hermes(tmp_path):
+    hermes_dir = copy_hermes(tmp_path)
+    (hermes_dir / "VERSION").write_text("v2026.8.25\n", encoding="utf-8")
+    source = EXACT_BASE_V020_FIXTURE.read_text(encoding="utf-8")
+    source = source.replace(
+        "media_files = self.filter_media_delivery_paths(media_files)",
+        (
+            "media_files = self.filter_media_delivery_paths("
+            "media_files, session_key=session_key)"
+        ),
+        1,
+    ).replace(
+        "local_files = self.filter_local_delivery_paths(local_files)",
+        (
+            "local_files = self.filter_local_delivery_paths("
+            "local_files, session_key=session_key)"
+        ),
+        1,
+    )
+    target = base_path(hermes_dir)
+    target.parent.mkdir(parents=True)
+    target.write_text(source, encoding="utf-8")
+    return hermes_dir
+
+
 def cron_path(hermes_dir):
     return hermes_dir / "cron" / "scheduler.py"
 
@@ -1645,6 +1670,32 @@ def test_install_and_restore_020_manages_awaited_ledger_contract(tmp_path):
 
     assert cli.main(["restore", "--hermes-dir", str(hermes_dir), "--yes"]) == 0
     assert run_py(hermes_dir).read_bytes() == run_original
+    assert base_path(hermes_dir).read_bytes() == base_original
+
+
+def test_install_accepts_2026_8_25_session_scoped_delivery_filters(
+    tmp_path, capsys
+):
+    hermes_dir = make_exact_2026_8_25_hermes(tmp_path)
+    base_original = base_path(hermes_dir).read_bytes()
+
+    assert cli.main(["install", "--hermes-dir", str(hermes_dir), "--yes"]) == 0
+    patched = base_path(hermes_dir).read_text(encoding="utf-8")
+    assert patcher.EXACT_BASE_NO_TEXT_PATCH_BEGIN in patched
+    assert patcher.EXACT_BASE_FINAL_DELIVERY_PATCH_BEGIN in patched
+
+    assert cli.main(
+        [
+            "doctor",
+            "--config",
+            str(hermes_dir / "config.yaml"),
+            "--hermes-dir",
+            str(hermes_dir),
+        ]
+    ) == 0
+    assert "exact_delivery_contract: ready" in capsys.readouterr().out
+
+    assert cli.main(["restore", "--hermes-dir", str(hermes_dir), "--yes"]) == 0
     assert base_path(hermes_dir).read_bytes() == base_original
 
 
