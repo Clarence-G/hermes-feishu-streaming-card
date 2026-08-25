@@ -330,7 +330,7 @@ a privileged container, or mount host system-service directories.
 ```
 export FEISHU_APP_ID=cli_xxx
 export FEISHU_APP_SECRET=xxx
-export HFC_VERSION=v4.3.5
+export HFC_VERSION=v4.3.6
 bash install-docker.sh
 ```
 

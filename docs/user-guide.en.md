@@ -64,6 +64,25 @@ Since V3.8.2, the final answer stays in the primary content area while pre-tool 
 | Multi-bot, group, and profile routing is hard to inspect | `bindings.chats`, safe `group_rules` diagnostics, profile-aware sessions, and `/health.routing` diagnostics |
 | Hook or sidecar failures are hard to debug | `doctor`, runtime import checks, `/health` metrics, fail-closed installer, restore/uninstall |
 
+## V4.3.6 Topic Creation and Requester Mentions
+
+Feishu's create API does not support `receive_id_type=thread_id`. Starting in V4.3.6, anchored topic delivery continues through the reply API, while a notification or cron create that has only `thread_id` and no anchor falls back to the parent `chat_id` to avoid `99992402`; HFC does not guess a thread root.
+
+Approval/clarify cards and enabled completion notifications can `@` mention the requester by default. Configure them independently when needed:
+
+```yaml
+card:
+  mentions_in_cards: true
+  interaction_mentions:
+    approval: true
+    clarify: false
+  completion_notify:
+    enabled: true
+    mention: false
+```
+
+`mentions_in_cards: false` is the master off switch and overrides every per-kind and completion mention setting. With completion mentions disabled, sender-less system/background work can still send a plain completion notification.
+
 ## V4.2.0 Safe Private-Chat Updates
 
 An exact bare `/update` in a Feishu private chat first performs read-only checks of the Hermes version, Git worktree, managed hooks, current `origin/main` snapshot, active work, and the cached same-version maintenance wheel. It then shows a 120-second confirmation card. Confirmation authorizes the official `hermes update --yes` to fetch the latest `origin/main` at execution time. If the remote advances after confirmation, the independent runtime first reinstalls the same HFC version and restores the hook, sidecar, and Gateway, then reports the snapshot change as a failure in the original card. Card-based automatic update is available only when runtime telemetry proves complete turn/cron/API counting from one aggregate sample and verifies that the running `HERMES_HOME` matches the checkout marker directory.
@@ -512,14 +531,14 @@ Use `install-docker.sh` inside an existing Hermes container. It defaults to
 script selects Hermes venv Python and does not fall back to system Python unless
 `HFC_PYTHON` is set.
 
-The Compose example defaults `HFC_VERSION` to `v4.3.5`.
+The Compose example defaults `HFC_VERSION` to `v4.3.6`.
 
 Example:
 
 ```bash
 export FEISHU_APP_ID=cli_xxx
 export FEISHU_APP_SECRET=xxx
-export HFC_VERSION=v4.3.5
+export HFC_VERSION=v4.3.6
 bash install-docker.sh --profile-id child --event-url http://hfc-sidecar:8765/events
 ```
 
@@ -762,6 +781,7 @@ The Hermes hook converts `message.started` / `thinking.delta` / `answer.delta` /
 
 | Version | Date | Highlights |
 |---------|------|-----------|
+| [v4.3.6](release-notes-v4.3.6.en.md) | 2026-08-25 | Issue #237: unanchored topic creation uses `chat_id` instead of Feishu's rejected `receive_id_type=thread_id`; PR #228: approval/clarify cards and completion notifications support configurable requester `@` mentions |
 | [v4.3.5](release-notes-v4.3.5.en.md) | 2026-08-24 | Prevents the HFC `edit_message` wrapper from forwarding unsupported internal `metadata` to the Hermes v2026.8.3 Feishu adapter while preserving metadata-aware adapters and ordinary unknown-keyword `TypeError` behavior |
 | [v4.3.4](release-notes-v4.3.4.en.md) | 2026-08-24 | Avoids reverse-DNS startup stalls for the runtime interaction listener and permits process exit without an explicit close; V3 Hybrid `doctor --json` uses the V3 inspector instead of emitting Legacy manifest/hash/path failures |
 | [v4.3.3](release-notes-v4.3.3.en.md) | 2026-08-24 | Preserves the reply anchor and `reply_in_thread` placement when the first reply creates a thread; completion notifications remain in that thread, while an explicit thread text reply without an anchor fails closed |

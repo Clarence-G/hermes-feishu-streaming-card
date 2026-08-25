@@ -10,6 +10,14 @@
 - 显式 `reply_in_thread=true` 但缺少 reply anchor 时，确认 card 或 completion notification 不发送 top-level fallback；只保留脱敏拒绝分类，不记录真实标识符或正文。
 - 记录前后脱敏 counters，要求 `feishu_send_failures`、`feishu_update_failures` 和 `last_route_error` 不新增；不得保存真实 chat/message/user id、callback token、回答正文或私人截图。
 
+## V4.3.6 话题 create 与 requester mention 验收
+
+- 在带 `thread_id` 但刻意没有 reply anchor 的 system notice 或 cron 场景触发一次卡片 create；请求必须以 `receive_id_type=chat_id` 成功落到父群，`last_send_error.api_code` 不得出现 `99992402`，且不得把 `omt_*`/`om_*` 作为 create receiver。
+- 再以真实 `reply_to_message_id` 触发同类场景；卡片必须通过 reply API 留在原 thread，不能因前一条 fallback 永久丢失 anchored placement。
+- 默认配置下分别触发 approval 与 clarify，合法发起人 `open_id` 只渲染一次 `<at>`。设置 `card.interaction_mentions.clarify: false` 后仅 clarify 不提及；设置 `card.mentions_in_cards: false` 后 approval、clarify 与 completion 全部不提及。
+- 设置 `completion_notify: {enabled: true, mention: false}`，用无 sender 的系统/后台 turn 完成任务；必须发送一次不带 `@` 的普通完成通知。恢复 mention 默认值并提供非法 `open_id` 后不得发送通知，也不得把原始身份写入日志。
+- 每轮都确认原 schema 2.0 卡仍是唯一 streaming PATCH owner，legacy interaction card 只是 auxiliary；`230099`、`200800` 与 `200673` 不新增。
+
 ## V4.3.2 Issue #227 卡片方言双轨验收
 
 - 在同一 turn 记录脱敏前后 counters，发起一次 direct choice clarify 和一次 custom-input form clarify；每轮只发送一张辅助 legacy 交互卡，原 schema 2.0 streaming card 必须保持为后续 PATCH owner。

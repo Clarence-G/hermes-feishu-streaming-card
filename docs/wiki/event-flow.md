@@ -157,11 +157,14 @@ sidecar 仍应创建 session 并发送初始卡片，不能把整条流计入 `e
 
 - 首张卡片通常锚定用户 topic message id。
 - 尚无 `thread_id` 但 Hermes 明确要求从当前消息建 thread 时，hook 发送 `reply_in_thread=true` 和真实 reply anchor；sidecar 将该 placement 固定在 session 上，后续普通交互、重复交互和 runtime-admission 交互都继续留在同一 thread。
+- Feishu create API 不接受 `receive_id_type=thread_id`。只有存在真实 `reply_to_message_id` 时才能通过 reply API 保留 topic placement；`thread_id` 存在但 anchor 缺失时，实际 create 必须回落到父 `chat_id`，不能把 `omt_*`/`om_*` 当作 create receiver，也不猜测 thread root。
 - hook runtime 从真实入站 `event.message_id` 绑定可选 `turn_id`，同一轮后续事件继续携带这个稳定值；`message_id` 仍可表示 Hermes 内部 streaming/reply identity。
 - `reply_to_message_id` 只决定飞书回复锚点，不决定 session ownership。
 - sidecar 对显式 `turn_id` 启用 canonical turn hard fence：session、sequence、policy 与 native handoff 都使用 `turn_id`，绝不查询 reply alias。
 - 旧 hook 缺少 `turn_id` 时继续走兼容路径：sidecar 可用 `reply_to_message_id` 查已有 active card，找到后继续 PATCH 原卡片。
 - hook runtime 不把 `source.message_id` 当 canonical turn identity；它只保留 Feishu reply anchor 语义。
+
+无 anchor 时回落父群只改变实际 API receiver；native-handoff 的 logical topic route 与 delivery UUID identity 仍保留原 `thread_id`，避免同一 obligation 因 fallback 改变幂等键。
 
 这条规则解决：
 

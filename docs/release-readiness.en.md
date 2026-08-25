@@ -2,7 +2,7 @@
 
 [中文](release-readiness.md) | [English](release-readiness.en.md)
 
-Current release candidate: `4.3.5`. This cycle merges PR #235 to prevent the HFC `edit_message` wrapper from forwarding its internal `metadata` keyword to the Hermes v2026.8.3 Feishu adapter, whose original method does not accept it and raises `TypeError`. The wrapper uses the original signature to decide whether to remove that internal keyword; adapters that explicitly support `metadata` or `**kwargs` keep receiving it, while unrelated unknown keywords continue to fail closed. Full automation, package builds, the release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion; automation is not represented as real Feishu/Lark client acceptance.
+Current release candidate: `4.3.6`. This cycle includes Issue #237 / PR #238's topic-create API compatibility fix and PR #228's requester `@` mentions for approval/clarify cards and completion notifications. Unanchored topic creation falls back to the parent `chat_id`, while anchored placement continues through the reply API. The schema 2.0 owner card remains the only PATCH target and legacy interaction cards remain auxiliary. Full automation, package builds, the release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion. The Issue #237 reporter supplied real Feishu API comparisons and local-hotfix evidence, but this cycle has not independently run a real client smoke; automation is not represented as platform acceptance.
 
 V3.9.0 was released on 2026-07-11, and V3.9.1 was released on 2026-07-11. The V4.0.13 all-command lifecycle remains intact; V4.2.0 narrows only a private-chat bare `/update` into the stricter dedicated maintenance card.
 
@@ -147,7 +147,18 @@ Acceptance also exposed an upstream Hermes `cron run` status-reporting bug: a su
 
 The `v3.9.0` release-assets workflow publishes four assets: the macOS tarball, Linux tarball, Windows zip, and checksums file: `hermes-feishu-card-v3.9.0-macos.tar.gz`, `hermes-feishu-card-v3.9.0-linux.tar.gz`, `hermes-feishu-card-v3.9.0-windows.zip`, and `hermes-feishu-card-v3.9.0-checksums.txt`.
 
-## V4.3.5 Release Gates
+## V4.3.6 Release Gates
+
+- Issue #237 / PR #238: an unanchored topic path must not use `thread_id` as the create API's `receive_id_type` or `receive_id`; the actual request must target the parent `chat_id`. A path with `reply_to_message_id` continues using the reply API and `reply_in_thread`.
+- PR #228: approval/clarify cards and the opt-in completion notification may `@` mention the requester. `card.mentions_in_cards: false` must override per-kind and completion settings. With `completion_notify.mention: false`, a system/background turn without a sender sends a plain completion notification; mention-enabled delivery still rejects a missing or malformed `open_id`.
+- The schema 2.0 streaming card remains the only PATCH owner and legacy interaction cards remain auxiliary. Native-handoff route/UUID identity remains bound to the logical topic even when the actual unanchored create falls back to the parent chat.
+- Exact feature/fix merges: PR #238 `199d0390269693e74d1ff130cb7b4ecc4570dcfe`; PR #228 `69f47123611bb1639e74d9a076212ce621322805`.
+- Existing regression evidence: #237 full pytest in a disposable regular-wheel environment **`3283 passed, 5 skipped`**; #228 final-combination related units **`225 passed`**, server integration **`324 passed`**, the two new completion regressions separately **`2 passed`**, and all 12 CI checks on the final rebased head passed.
+- v4.3.6 release candidate: `git diff --check` **passed**; full pytest in a fresh Python 3.12 regular-wheel environment **`3325 passed, 5 skipped in 560.94s`**; PEP 517 sdist/wheel, package/distribution `4.3.6` from isolated `site-packages`, the single plugin entrypoint, all 24 slices, and the main CLI plus `enable/disable --help` are verified.
+- Release PR CI, exact release merge, annotated tag, public tagged install, and Release assets/checksums: **pending**.
+- Real Feishu: the Issue #237 reporter verified that invalid `thread_id` creation returns `99992402`, while `chat_id` creation and the reply API succeed, and reported successful creates after a local hotfix. Independent maintainer client smoke in this cycle: **not run**. Warning throttling is outside this release.
+
+## V4.3.5 Release Gates (historical)
 
 - PR #235: the Hermes v2026.8.3 Feishu adapter exposes `edit_message(chat_id, message_id, content, *, finalize=False)` without `metadata`; when card routing does not take ownership, the HFC wrapper may remove only that wrapper-owned internal keyword before calling the original method.
 - If the original method explicitly accepts `metadata` or `**kwargs`, forwarding must remain intact. Unrelated unknown keywords must not be swallowed and must still raise `TypeError` from the original method.
@@ -155,7 +166,7 @@ The `v3.9.0` release-assets workflow publishes four assets: the macOS tarball, L
 - Focused v4.3.5 docs/package/native-provenance gate: **passed (`99 passed`)**. Full pytest in a disposable wheel environment: **passed (`3280 passed, 5 skipped in 555.86s`)**. `git diff --check`: **passed**.
 - PEP 517 sdist/wheel and fresh Python 3.12 wheel-only provenance: **passed**. Package/distribution `4.3.5`, isolated `site-packages` import, the single Hermes plugin entrypoint, all 24 provenance slices, and the main CLI plus `enable/disable --help` are verified.
 - PR #235 HEAD `5b3bf428eb688df4b95607cba1a4ce50e2eeb8d0`: Tests run `32719244038` attempt 3 and CodeQL run `32719244032` **passed**. Attempts 1 and 2 failed only because the fixed Hermes fixture clone received GitHub HTTP 429; the third attempt passed the fixture and every platform job.
-- Exact PR merge `d56555bf9e716de67ed14f8ed992df1ec55cea21` is confirmed. The release PR, exact release merge, annotated tag, public install, and Release assets/checksums remain in the release workflow.
+- Exact PR merge `d56555bf9e716de67ed14f8ed992df1ec55cea21`, release merge `7829e51c4c7851aa09347e56bb8c2a7136c4b0cb`, annotated tag, public install, and Release assets/checksums are complete.
 - This cycle does not change card ownership, thread placement, callback authentication, Feishu API payloads, Hermes patch ownership, or the archived `legacy/` runtime.
 
 ## V4.3.4 Release Gates (historical)

@@ -2,18 +2,29 @@
 
 当前 active runtime 是 `hermes_feishu_card/`。legacy adapter、dual mode、旧 `sidecar/`、旧 `patch/` 和 `installer_v2.py` 不是 active runtime，仅保留作历史参考。
 
-## V3.8 / V3.9 / V3.10 / V4 系列路线：V3.8.0 / V3.8.1 / V3.8.2 / V3.8.3 / V3.8.4 / V3.8.5 / V3.8.6 / V3.8.7 / V3.8.8 / V3.8.9 / V3.8.10 / V3.8.11 / V3.8.12 / V3.8.13 / V3.8.14 / V3.8.15 / V3.8.16 / V3.8.17 / V3.8.18 / V3.9.0 / V3.9.1 / V3.10.0 / V4.0.0 / V4.0.1 / V4.0.2 / V4.0.3 / V4.0.4 / V4.0.5 / V4.0.6 / V4.0.7 / V4.0.8 / V4.0.9 / V4.0.10 / V4.0.11 / V4.0.12 / V4.0.13 / V4.0.14 / V4.0.15 / V4.0.16 / V4.0.17 / V4.0.18 / V4.0.19 / V4.0.20 / V4.0.21 / V4.1.0 / V4.1.1 / V4.1.2 / V4.1.3 / V4.1.4 / V4.2.0 / V4.2.1 / V4.2.2 / V4.2.3 / V4.2.4 / V4.2.5 / V4.2.6 / V4.2.7 / V4.2.8 / V4.2.9 / V4.2.10 / V4.2.11 / V4.2.12 / V4.3.0 / V4.3.1 / V4.3.2 / V4.3.3 / V4.3.4 / V4.3.5
+## V3.8 / V3.9 / V3.10 / V4 系列路线：V3.8.0 / V3.8.1 / V3.8.2 / V3.8.3 / V3.8.4 / V3.8.5 / V3.8.6 / V3.8.7 / V3.8.8 / V3.8.9 / V3.8.10 / V3.8.11 / V3.8.12 / V3.8.13 / V3.8.14 / V3.8.15 / V3.8.16 / V3.8.17 / V3.8.18 / V3.9.0 / V3.9.1 / V3.10.0 / V4.0.0 / V4.0.1 / V4.0.2 / V4.0.3 / V4.0.4 / V4.0.5 / V4.0.6 / V4.0.7 / V4.0.8 / V4.0.9 / V4.0.10 / V4.0.11 / V4.0.12 / V4.0.13 / V4.0.14 / V4.0.15 / V4.0.16 / V4.0.17 / V4.0.18 / V4.0.19 / V4.0.20 / V4.0.21 / V4.1.0 / V4.1.1 / V4.1.2 / V4.1.3 / V4.1.4 / V4.2.0 / V4.2.1 / V4.2.2 / V4.2.3 / V4.2.4 / V4.2.5 / V4.2.6 / V4.2.7 / V4.2.8 / V4.2.9 / V4.2.10 / V4.2.11 / V4.2.12 / V4.3.0 / V4.3.1 / V4.3.2 / V4.3.3 / V4.3.4 / V4.3.5 / V4.3.6
 
 详细路线见 [docs/superpowers/specs/2026-06-30-v3-8-design.md](docs/superpowers/specs/2026-06-30-v3-8-design.md) 和 [docs/superpowers/plans/2026-06-30-v3-8-card-ux-stability.md](docs/superpowers/plans/2026-06-30-v3-8-card-ux-stability.md)。
 
-### V4.3.5：Feishu edit fallback metadata 兼容热修（发布候选）
+### V4.3.6：话题 create 兼容与可配置 @ 提及（发布候选）
+
+- [x] Issue #237 / PR #238：无 reply anchor 的话题 create 不再使用飞书不支持的 `receive_id_type=thread_id`，改为向父 `chat_id` 创建；有 anchor 的话题路径继续使用 reply API。
+- [x] Gateway native-handoff 的逻辑 topic route 与 UUID identity 保持稳定，但实际无锚点 create 会移除 adapter metadata 中的 `thread_id`，避免同源非法请求。
+- [x] PR #228：approval/clarify 交互卡与 opt-in completion notification 支持 `@` 发起人；`mentions_in_cards: false` 是总关闭开关，per-kind 与 completion 开关只在总开关未关闭时生效。
+- [x] schema 2.0 streaming card 保持唯一 PATCH owner；legacy 交互卡继续作为 auxiliary message。`completion_notify.mention: false` 在无 sender 场景发送普通完成通知，mention 开启时仍拒绝非法 `open_id`。
+- [x] #237 正常 wheel 全量回归 `3283 passed, 5 skipped`；#228 最终组合相关 unit `225 passed`、server integration `324 passed`，最终 rebased head 12 项 CI 全绿。
+- [x] v4.3.6 release candidate：`git diff --check`、sdist/wheel 与 normal-wheel provenance 通过；完整 pytest `3325 passed, 5 skipped in 560.94s`；package/distribution `4.3.6` 来自隔离 `site-packages`，唯一 plugin entrypoint、24 slices 与 CLI help 均已验证。
+- [ ] release PR CI、exact release merge、annotated tag、public tagged install 与 Release assets/checksums。
+- [ ] 独立真实飞书 smoke；当前仅有 Issue #237 报告者的真实 API 对照与本地热修验证，自动化不冒充平台验收。
+
+### V4.3.5：Feishu edit fallback metadata 兼容热修（已发布）
 
 - [x] 合入 PR #235：HFC wrapper 仅在原 `edit_message` 明确不支持时移除内部 `metadata`，兼容 Hermes v2026.8.3 Feishu adapter。
 - [x] 支持显式 `metadata` 或 `**kwargs` 的 adapter 继续接收原参数；无关未知关键字仍抛 `TypeError`，不被兼容层吞掉。
 - [x] 独立本地回归 `4 passed`，hook/server 热区 `841 passed`，精确 PR HEAD 完整 pytest `3279 passed, 6 skipped`。
 - [x] PR #235 HEAD `5b3bf428eb688df4b95607cba1a4ce50e2eeb8d0`：Tests run `32719244038`（attempt 3，10 jobs）与 CodeQL run `32719244032` 通过；exact merge `d56555bf9e716de67ed14f8ed992df1ec55cea21`。
 - [x] docs/package/native provenance 聚焦门禁 `99 passed`；一次性 wheel 环境完整 pytest `3280 passed, 5 skipped in 555.86s`；sdist/wheel、fresh `site-packages` provenance、唯一 plugin entrypoint、24 slices 与 CLI help 通过。
-- [ ] release PR CI、exact release merge、annotated tag 与 Release assets/checksums。
+- [x] release PR CI、exact release merge `7829e51c4c7851aa09347e56bb8c2a7136c4b0cb`、annotated tag 与 Release assets/checksums 已完成。
 
 ### V4.3.4：runtime listener 与 V3 doctor 热修（已发布）
 
