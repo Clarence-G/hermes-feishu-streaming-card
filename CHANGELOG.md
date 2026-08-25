@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.2.0.html).
 
+## V4.3.6 — 2026-08-25
+
+See also: [docs/release-notes-v4.3.6.md](docs/release-notes-v4.3.6.md)
+
+### Added
+- PR #228: pending approval/clarify cards and the opt-in completion notification can `@` mention the initiating Feishu user. `card.mentions_in_cards` is the master off switch, with `card.interaction_mentions.{approval,clarify}` and `card.completion_notify.mention` for finer control.
+
+### Fixed
+- Issue #237 / PR #238: unanchored topic delivery no longer calls Feishu's create-message API with the unsupported `receive_id_type=thread_id`, which was rejected with `99992402`. The create fallback now targets the parent `chat_id`; anchored topic delivery continues using the reply API.
+- `completion_notify.mention: false` now permits a plain completion notification when a system/background turn has no valid requester `open_id`. Mention-enabled notifications still reject missing or malformed identities.
+
+### Safety
+- The original schema 2.0 streaming card remains the sole PATCH owner. Legacy approval/clarify cards stay auxiliary, and mention rendering never promotes them into the main update rail.
+- Native-handoff route identity and UUID derivation retain the logical topic context even when the actual unanchored create falls back to the parent chat. Warning throttling remains outside this release.
+
+### Credits
+- Thanks @leavrcn for the production Issue #237 evidence, Feishu API comparison, and local hotfix validation.
+- Thanks @Cassius0924 for PR #228 and its configuration, card-rendering, completion-notification, and regression-test work.
+
 ## V4.3.5 — 2026-08-24
 
 See also: [docs/release-notes-v4.3.5.md](docs/release-notes-v4.3.5.md)

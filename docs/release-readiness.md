@@ -2,7 +2,7 @@
 
 [中文](release-readiness.md) | [English](release-readiness.en.md)
 
-当前发布候选为 `4.3.5`。本轮合入 PR #235，修复 HFC `edit_message` wrapper 把内部 `metadata` 转发给不支持该形参的 Hermes v2026.8.3 Feishu adapter 所触发的 `TypeError`。wrapper 通过原方法签名决定是否移除该内部参数；显式支持 `metadata` 或 `**kwargs` 的 adapter 保持透传，无关未知参数继续 fail-closed。完整自动化、包构建、release PR、exact merge SHA、public tag/install 与 Release assets 只有完成后才会标记通过；自动化不冒充真实飞书客户端验收。
+当前发布候选为 `4.3.6`。本轮包含 Issue #237 / PR #238 的话题 create API 兼容修复，以及 PR #228 的 approval/clarify 与 completion requester `@` 提及能力。无 reply anchor 的话题 create 改用父 `chat_id`，有 anchor 时继续走 reply API；schema 2.0 主卡仍是唯一 PATCH owner，legacy 交互卡保持 auxiliary。完整自动化、包构建、release PR、exact merge SHA、public tag/install 与 Release assets 只有完成后才会标记通过；Issue #237 报告者提供了真实飞书 API 对照与本地热修验证，但本轮尚未独立执行真实客户端 smoke，自动化不冒充平台验收。
 
 V3.9.0 和 V3.9.1 已于 2026-07-11 发布。V4.0.13 的通用命令链仍保持“重启前反馈进入命令卡”的历史契约；V4.2.0 只把私聊裸 `/update` 收束到更严格的专用维护卡。
 
@@ -147,7 +147,18 @@ python3 -m hermes_feishu_card.cli restore --hermes-dir ~/.hermes/hermes-agent --
 
 `v3.9.0` tag 的 release-assets workflow 会发布 4 个 assets：macOS tarball、Linux tarball、Windows zip 和 checksums 文件，分别为 `hermes-feishu-card-v3.9.0-macos.tar.gz`、`hermes-feishu-card-v3.9.0-linux.tar.gz`、`hermes-feishu-card-v3.9.0-windows.zip`、`hermes-feishu-card-v3.9.0-checksums.txt`。
 
-## V4.3.5 发布门禁
+## V4.3.6 发布门禁
+
+- Issue #237 / PR #238：无 reply anchor 的 topic 路径不得再把 `thread_id` 作为 create API 的 `receive_id_type` 或 `receive_id`；实际请求必须使用父 `chat_id`。有 `reply_to_message_id` 时继续使用 reply API 与 `reply_in_thread`。
+- PR #228：approval/clarify 与 opt-in completion notification 可 `@` 发起人；`card.mentions_in_cards: false` 必须覆盖 per-kind 与 completion 配置。`completion_notify.mention: false` 在无 sender 的系统/后台场景发送普通完成通知，mention 开启时仍拒绝缺失或非法 `open_id`。
+- schema 2.0 streaming card 保持唯一 PATCH owner，legacy interaction card 继续作为 auxiliary message；native-handoff route/UUID 继续绑定逻辑 topic identity，即使实际无锚点 create 回落父群。
+- exact feature/fix merges：PR #238 `199d0390269693e74d1ff130cb7b4ecc4570dcfe`；PR #228 `69f47123611bb1639e74d9a076212ce621322805`。
+- 已有回归证据：#237 一次性普通 wheel 全量 pytest **`3283 passed, 5 skipped`**；#228 最终组合相关 unit **`225 passed`**、server integration **`324 passed`**、两条新增 completion 回归单独 **`2 passed`**，最终 rebased head 的 12 项 CI 全绿。
+- v4.3.6 release candidate：`git diff --check` **已通过**；fresh Python 3.12 normal-wheel 环境完整 pytest **`3325 passed, 5 skipped in 560.94s`**；PEP 517 sdist/wheel、隔离 `site-packages` 中的 package/distribution `4.3.6`、唯一 plugin entrypoint、24 slices，以及主 CLI 与 `enable/disable --help` 均已验证。
+- release PR CI、exact release merge、annotated tag、public tagged install 与 Release assets/checksums：**待执行**。
+- 真实飞书：Issue #237 报告者已验证非法 `thread_id` create 返回 `99992402`、`chat_id` create 与 reply API 成功，并报告本地热修后 create 恢复；维护者本轮独立客户端 smoke：**未执行**。warning 节流不在本版本范围。
+
+## V4.3.5 发布门禁（历史记录）
 
 - PR #235：Hermes v2026.8.3 Feishu adapter 的原始 `edit_message(chat_id, message_id, content, *, finalize=False)` 不接收 `metadata`；HFC wrapper 在 card 路由未接管、回退原方法时只能移除这一项 wrapper-owned 内部参数。
 - 原方法显式接收 `metadata` 或 `**kwargs` 时必须原样透传；无关未知关键字不得被吞掉，仍由原方法抛出 `TypeError`。
@@ -155,7 +166,7 @@ python3 -m hermes_feishu_card.cli restore --hermes-dir ~/.hermes/hermes-agent --
 - v4.3.5 docs/package/native provenance 聚焦门禁：**已通过（`99 passed`）**；一次性 wheel 环境完整 pytest：**已通过（`3280 passed, 5 skipped in 555.86s`）**；`git diff --check`：**已通过**。
 - PEP 517 sdist/wheel 与 fresh Python 3.12 wheel-only provenance：**已通过**。package/distribution `4.3.5`、隔离 `site-packages` import、唯一 Hermes plugin entrypoint、24 个 provenance slices、主 CLI 与 `enable/disable --help` 均已验证。
 - PR #235 HEAD `5b3bf428eb688df4b95607cba1a4ce50e2eeb8d0`：Tests run `32719244038` attempt 3 与 CodeQL run `32719244032` **已通过**；attempt 1/2 仅 fixed Hermes fixture 因 GitHub HTTP 429 克隆失败，第三次 fixture 与所有平台 job 均通过。
-- exact PR merge `d56555bf9e716de67ed14f8ed992df1ec55cea21` 已确认；release PR、exact release merge、annotated tag、public install 与 Release assets/checksums：**发布流程中继续执行**。
+- exact PR merge `d56555bf9e716de67ed14f8ed992df1ec55cea21`、release merge `7829e51c4c7851aa09347e56bb8c2a7136c4b0cb`、annotated tag、public install 与 Release assets/checksums：**已完成**。
 - 本轮不改 card ownership、thread placement、callback authentication、飞书 API payload、Hermes patch ownership 或 `legacy/` runtime。
 
 ## V4.3.4 发布门禁（历史记录）
