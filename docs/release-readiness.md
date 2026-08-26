@@ -2,7 +2,7 @@
 
 [中文](release-readiness.md) | [English](release-readiness.en.md)
 
-当前发布候选为 `4.3.6`。本轮包含 Issue #237 / PR #238 的话题 create API 兼容修复，以及 PR #228 的 approval/clarify 与 completion requester `@` 提及能力。无 reply anchor 的话题 create 改用父 `chat_id`，有 anchor 时继续走 reply API；schema 2.0 主卡仍是唯一 PATCH owner，legacy 交互卡保持 auxiliary。完整自动化、包构建、release PR、exact merge SHA、public tag/install 与 Release assets 只有完成后才会标记通过；Issue #237 报告者提供了真实飞书 API 对照与本地热修验证，但本轮尚未独立执行真实客户端 smoke，自动化不冒充平台验收。
+当前发布候选为 `4.3.7`。本轮修复 Issue #240 / PR #241：Hermes 2026-08-25 core 的 Base media/local delivery filter 会收到 `session_key=session_key`，installer exact matcher 现在严格接受该新版调用和旧版无关键字调用，其他形态继续 fail-closed。完整自动化、release PR、exact merge SHA、public tag/install 与 Release assets 只有完成后才会标记通过；本轮尚未独立执行真实飞书客户端 smoke，自动化不冒充平台验收。
 
 V3.9.0 和 V3.9.1 已于 2026-07-11 发布。V4.0.13 的通用命令链仍保持“重启前反馈进入命令卡”的历史契约；V4.2.0 只把私聊裸 `/update` 收束到更严格的专用维护卡。
 
@@ -147,7 +147,16 @@ python3 -m hermes_feishu_card.cli restore --hermes-dir ~/.hermes/hermes-agent --
 
 `v3.9.0` tag 的 release-assets workflow 会发布 4 个 assets：macOS tarball、Linux tarball、Windows zip 和 checksums 文件，分别为 `hermes-feishu-card-v3.9.0-macos.tar.gz`、`hermes-feishu-card-v3.9.0-linux.tar.gz`、`hermes-feishu-card-v3.9.0-windows.zip`、`hermes-feishu-card-v3.9.0-checksums.txt`。
 
-## V4.3.6 发布门禁
+## V4.3.7 发布门禁
+
+- Issue #240 / PR #241：Base `filter_media_delivery_paths` / `filter_local_delivery_paths` exact matcher 必须同时接受旧版单位置参数调用与新版唯一 `session_key=session_key` 关键字调用，避免 `exact_delivery_contract: missing_or_unsupported`。
+- extra/wrong/unpacked keyword、错误值以及缺少/增加位置参数必须全部 fail-closed；apply/remove/restore 保持幂等和逐字恢复。
+- PR 精确 head `5e75650b0f147a24e65d5f0e499fe8b5a3f8f22f` 定向回归 **`460 passed, 1 skipped`**；6 种对抗调用形态全部拒绝；真实 Hermes `82b32f32ef` source apply/idempotent/remove roundtrip 通过。
+- fresh Python 3.12 normal-wheel 环境完整 pytest **`3330 passed, 5 skipped in 569.93s`**；`git diff --check` **已通过**。
+- PR #241 的 12 项 GitHub checks 全绿；exact merge `7fcf3cbd67d3a5100739e9e3d3d7cdcce080cb62`。release candidate CI、exact release merge、annotated tag、public tagged install 与 Release assets/checksums：**待最终门禁完成**。
+- 真实飞书客户端 smoke：**未执行**。本修复只改变 installer AST contract 识别，不改变 Feishu API/card runtime；自动化不冒充平台验收。
+
+## V4.3.6 发布门禁（历史记录）
 
 - Issue #237 / PR #238：无 reply anchor 的 topic 路径不得再把 `thread_id` 作为 create API 的 `receive_id_type` 或 `receive_id`；实际请求必须使用父 `chat_id`。有 `reply_to_message_id` 时继续使用 reply API 与 `reply_in_thread`。
 - PR #228：approval/clarify 与 opt-in completion notification 可 `@` 发起人；`card.mentions_in_cards: false` 必须覆盖 per-kind 与 completion 配置。`completion_notify.mention: false` 在无 sender 的系统/后台场景发送普通完成通知，mention 开启时仍拒绝缺失或非法 `open_id`。
@@ -155,7 +164,7 @@ python3 -m hermes_feishu_card.cli restore --hermes-dir ~/.hermes/hermes-agent --
 - exact feature/fix merges：PR #238 `199d0390269693e74d1ff130cb7b4ecc4570dcfe`；PR #228 `69f47123611bb1639e74d9a076212ce621322805`。
 - 已有回归证据：#237 一次性普通 wheel 全量 pytest **`3283 passed, 5 skipped`**；#228 最终组合相关 unit **`225 passed`**、server integration **`324 passed`**、两条新增 completion 回归单独 **`2 passed`**，最终 rebased head 的 12 项 CI 全绿。
 - v4.3.6 release candidate：`git diff --check` **已通过**；fresh Python 3.12 normal-wheel 环境完整 pytest **`3325 passed, 5 skipped in 560.94s`**；PEP 517 sdist/wheel、隔离 `site-packages` 中的 package/distribution `4.3.6`、唯一 plugin entrypoint、24 slices，以及主 CLI 与 `enable/disable --help` 均已验证。
-- release PR CI、exact release merge、annotated tag、public tagged install 与 Release assets/checksums：**待执行**。
+- release PR CI、exact release merge `a2a244659f198ecd57c862455d3f4d658a827b66`、annotated tag、public tagged install 与 Release assets/checksums：**已完成**。
 - 真实飞书：Issue #237 报告者已验证非法 `thread_id` create 返回 `99992402`、`chat_id` create 与 reply API 成功，并报告本地热修后 create 恢复；维护者本轮独立客户端 smoke：**未执行**。warning 节流不在本版本范围。
 
 ## V4.3.5 发布门禁（历史记录）

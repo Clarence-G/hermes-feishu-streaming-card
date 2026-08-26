@@ -87,6 +87,7 @@
 高风险点：
 
 - patch 必须幂等、可移除、可检测 corrupt markers。
+- Base media/local delivery filter 的 exact matcher 只接受旧版单位置参数调用，或唯一 `session_key=session_key` 关键字调用；extra/wrong/unpacked keyword 与位置参数漂移必须 fail-closed，并保持 apply/remove/restore 逐字往返。
 - Hermes source-stripped Docker 目录缺少 `VERSION`，或版本 metadata 可读但格式不可解析时，只能在 gateway anchors 可验证时兜底。
 - 新 hook block 必须有 patcher 单测和 remove/restore 覆盖。
 - Hermes 0.20 将同步 delivery-ledger 写入包装为 `await asyncio.to_thread(...)`；只可在已验证的 ledger anchor 内解包这一精确结构，未 `await`、其他 wrapper 或全局 call 解包必须继续拒绝。

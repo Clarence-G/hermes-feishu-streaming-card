@@ -64,6 +64,12 @@ Since V3.8.2, the final answer stays in the primary content area while pre-tool 
 | Multi-bot, group, and profile routing is hard to inspect | `bindings.chats`, safe `group_rules` diagnostics, profile-aware sessions, and `/health.routing` diagnostics |
 | Hook or sidecar failures are hard to debug | `doctor`, runtime import checks, `/health` metrics, fail-closed installer, restore/uninstall |
 
+## V4.3.7 Hermes Delivery-Filter Installer Compatibility
+
+The Hermes 2026-08-25 core passes the current session key explicitly to the Base media/local delivery filters: `filter_*_delivery_paths(..., session_key=session_key)`. V4.3.7's installer exact matcher accepts both that call and the legacy call without keywords. Any extra keyword, wrong name or value, `**kwargs`, or missing or extra positional argument is rejected so HFC never patches an unknown Base contract.
+
+This fix only changes Hermes source-contract recognition for `install`, `setup`, and `doctor`; it does not change Feishu card/API delivery. If a Hermes upgrade produces `exact_delivery_contract: missing_or_unsupported`, upgrade HFC to V4.3.7 and rerun the official `setup` or `install` command. Do not edit Hermes `gateway/platforms/base.py` by hand.
+
 ## V4.3.6 Topic Creation and Requester Mentions
 
 Feishu's create API does not support `receive_id_type=thread_id`. Starting in V4.3.6, anchored topic delivery continues through the reply API, while a notification or cron create that has only `thread_id` and no anchor falls back to the parent `chat_id` to avoid `99992402`; HFC does not guess a thread root.
@@ -531,14 +537,14 @@ Use `install-docker.sh` inside an existing Hermes container. It defaults to
 script selects Hermes venv Python and does not fall back to system Python unless
 `HFC_PYTHON` is set.
 
-The Compose example defaults `HFC_VERSION` to `v4.3.6`.
+The Compose example defaults `HFC_VERSION` to `v4.3.7`.
 
 Example:
 
 ```bash
 export FEISHU_APP_ID=cli_xxx
 export FEISHU_APP_SECRET=xxx
-export HFC_VERSION=v4.3.6
+export HFC_VERSION=v4.3.7
 bash install-docker.sh --profile-id child --event-url http://hfc-sidecar:8765/events
 ```
 
@@ -781,6 +787,7 @@ The Hermes hook converts `message.started` / `thinking.delta` / `answer.delta` /
 
 | Version | Date | Highlights |
 |---------|------|-----------|
+| [v4.3.7](release-notes-v4.3.7.en.md) | 2026-08-26 | Issue #240 / PR #241: the installer exact matcher supports Hermes session-scoped media/local delivery filters while keeping every other keyword call fail-closed |
 | [v4.3.6](release-notes-v4.3.6.en.md) | 2026-08-25 | Issue #237: unanchored topic creation uses `chat_id` instead of Feishu's rejected `receive_id_type=thread_id`; PR #228: approval/clarify cards and completion notifications support configurable requester `@` mentions |
 | [v4.3.5](release-notes-v4.3.5.en.md) | 2026-08-24 | Prevents the HFC `edit_message` wrapper from forwarding unsupported internal `metadata` to the Hermes v2026.8.3 Feishu adapter while preserving metadata-aware adapters and ordinary unknown-keyword `TypeError` behavior |
 | [v4.3.4](release-notes-v4.3.4.en.md) | 2026-08-24 | Avoids reverse-DNS startup stalls for the runtime interaction listener and permits process exit without an explicit close; V3 Hybrid `doctor --json` uses the V3 inspector instead of emitting Legacy manifest/hash/path failures |
