@@ -758,6 +758,36 @@ def test_detect_020_accepts_awaited_to_thread_delivery_contract(tmp_path):
     assert result.capabilities["exact_base_delivery"] is True
 
 
+def test_detect_accepts_session_scoped_delivery_filter_contract(tmp_path):
+    _write_hermes_root(tmp_path, version="v2026.8.25")
+    source = EXACT_BASE_V020_FIXTURE.read_text(encoding="utf-8")
+    source = source.replace(
+        "media_files = self.filter_media_delivery_paths(media_files)",
+        (
+            "media_files = self.filter_media_delivery_paths("
+            "media_files, session_key=session_key)"
+        ),
+        1,
+    ).replace(
+        "local_files = self.filter_local_delivery_paths(local_files)",
+        (
+            "local_files = self.filter_local_delivery_paths("
+            "local_files, session_key=session_key)"
+        ),
+        1,
+    )
+    base_py = tmp_path / "gateway" / "platforms" / "base.py"
+    base_py.parent.mkdir(parents=True, exist_ok=True)
+    base_py.write_text(source, encoding="utf-8")
+
+    result = detect_hermes(tmp_path)
+
+    assert result.supported is True
+    assert result.base_required is True
+    assert result.base_hook_strategy == "exact_base_delivery"
+    assert result.capabilities["exact_base_delivery"] is True
+
+
 def test_detect_source_stripped_exact_ledger_requires_valid_base_contract(tmp_path):
     _write_hermes_root(tmp_path, version=None)
     base_py = _write_exact_base(tmp_path)

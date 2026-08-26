@@ -2164,6 +2164,40 @@ def test_apply_base_patch_accepts_020_awaited_to_thread_ledger_calls():
     assert patcher.remove_base_patch(patched) == source
 
 
+def test_apply_base_patch_accepts_session_scoped_delivery_filters():
+    source = _EXACT_BASE_SOURCE.replace(
+        "media_files = self.filter_media_delivery_paths(media_files)",
+        (
+            "media_files = self.filter_media_delivery_paths("
+            "media_files, session_key=session_key)"
+        ),
+        1,
+    ).replace(
+        "local_files = self.filter_local_delivery_paths(local_files)",
+        (
+            "local_files = self.filter_local_delivery_paths("
+            "local_files, session_key=session_key)"
+        ),
+        1,
+    )
+    media_only_source = _EXACT_BASE_SOURCE.replace(
+        "media_files = self.filter_media_delivery_paths(media_files)",
+        (
+            "media_files = self.filter_media_delivery_paths("
+            "media_files, session_key=session_key)"
+        ),
+        1,
+    )
+
+    for candidate in (media_only_source, source):
+        patched = patcher.apply_base_patch(candidate)
+
+        no_text = patched.index(patcher.EXACT_BASE_NO_TEXT_PATCH_BEGIN)
+        send_guard = patched.index("if text_content and not _tts_caption_delivered:")
+        assert no_text < send_guard
+        assert patcher.remove_base_patch(patched) == candidate
+
+
 def test_apply_base_patch_rejects_unawaited_to_thread_ledger_calls():
     source = EXACT_BASE_V020_FIXTURE.read_text(encoding="utf-8").replace(
         "await asyncio.to_thread(mark_attempting, _obligation_id)",
@@ -2196,6 +2230,20 @@ def test_base_patch_round_trip_is_byte_identical_for_newlines(content):
         _EXACT_BASE_SOURCE.replace(
             "media_files = self.filter_media_delivery_paths(media_files)",
             "media_files = list(media_files)",
+        ),
+        _EXACT_BASE_SOURCE.replace(
+            "media_files = self.filter_media_delivery_paths(media_files)",
+            (
+                "media_files = self.filter_media_delivery_paths("
+                "media_files, session_key=\"different\")"
+            ),
+        ),
+        _EXACT_BASE_SOURCE.replace(
+            "local_files = self.filter_local_delivery_paths(local_files)",
+            (
+                "local_files = self.filter_local_delivery_paths("
+                "local_files, unexpected=session_key)"
+            ),
         ),
         _EXACT_BASE_SOURCE.replace(
             "text_content = _strip_media_directives(text_content).strip()",
