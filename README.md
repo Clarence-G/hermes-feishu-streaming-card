@@ -139,7 +139,7 @@ Hermes `v2026.4.23` 起的旧版和 Hermes 0.13.0+/0.14.0/0.15.x/0.17.x/0.18.x/0
 已有 Hermes 容器优先使用：
 
 ```bash
-export FEISHU_APP_ID=cli_xxx FEISHU_APP_SECRET=xxx HFC_VERSION=v4.3.6
+export FEISHU_APP_ID=cli_xxx FEISHU_APP_SECRET=xxx HFC_VERSION=v4.3.7
 bash install-docker.sh
 ```
 
@@ -178,6 +178,7 @@ bash install-docker.sh
 ## 最新版本
 | 版本 | 重点 |
 |---|---|
+| [v4.3.7](docs/release-notes-v4.3.7.md) | 兼容 Hermes 2026-08-25 core 的 session-scoped delivery filters；安装器严格接受 `session_key=session_key` 新调用，同时保留旧调用并拒绝其他关键字形态 |
 | [v4.3.6](docs/release-notes-v4.3.6.md) | 修复无 reply anchor 的话题 create 路径使用非法 `receive_id_type=thread_id` 导致的 `99992402`；approval/clarify 交互卡与 completion notification 支持可配置地 `@` 发起人，并保持 schema 2.0 主卡 owner 不变 |
 | [v4.3.5](docs/release-notes-v4.3.5.md) | 兼容 Hermes v2026.8.3 Feishu adapter 的 `edit_message` 无 `metadata` 形参：wrapper 只移除原方法明确不支持的内部 metadata，支持 metadata/`**kwargs` 的 adapter 继续透传，无关未知参数仍正常抛出 `TypeError` |
 | [v4.3.4](docs/release-notes-v4.3.4.md) | 修复 runtime interaction listener 启动时的 reverse-DNS 阻塞与未关闭 listener 导致的 CLI 退出挂起；V3 Hybrid 安装改由 V3 inspector 驱动 `doctor --json`，避免误报 Legacy manifest/hash/path 问题 |

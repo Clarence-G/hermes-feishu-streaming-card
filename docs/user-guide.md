@@ -64,6 +64,12 @@ V3.8.2 起，最终答案保留在主内容区，pre-tool answer 会按“正文
 | 多机器人、多群聊、多 profile 难确认路由 | `bindings.chats`、`group_rules` 安全诊断、profile-aware session key、`/health.routing` 诊断 |
 | sidecar 或 hook 出问题难定位 | `doctor`、runtime import 检查、`/health` metrics、fail-closed installer、restore/uninstall |
 
+## V4.3.7 Hermes delivery filter 安装兼容
+
+Hermes 2026-08-25 core 会把当前 session key 显式传给 Base media/local delivery filter：`filter_*_delivery_paths(..., session_key=session_key)`。V4.3.7 的 installer exact matcher 同时接受该调用与旧版无关键字调用；任何额外关键字、错误名称或值、`**kwargs`、缺少或增加位置参数都会拒绝安装，避免在未知 Base contract 上打补丁。
+
+该修复只影响 `install` / `setup` / `doctor` 的 Hermes source contract 识别，不改变 Feishu 卡片/API 投递。升级 Hermes 后如果看到 `exact_delivery_contract: missing_or_unsupported`，先升级 HFC 到 V4.3.7，再重新运行官方 `setup` 或 `install`；不要手工修改 Hermes `gateway/platforms/base.py`。
+
 ## V4.3.6 话题 create 与发起人提及
 
 飞书 create API 不支持 `receive_id_type=thread_id`。V4.3.6 起，有真实 reply anchor 的话题继续使用 reply API；只有 `thread_id`、没有 anchor 的通知或 cron create 会回落到父 `chat_id`，避免 `99992402`，但不会猜测 thread root。
@@ -560,7 +566,7 @@ python3 -m hermes_feishu_card.cli status --config ~/.hermes/config.yaml
 | `HERMES_DIR` | `/opt/hermes` | 容器内 Hermes Agent Gateway 目录 |
 | `HFC_CONFIG` | `/opt/data/config.yaml` | sidecar 配置路径 |
 | `HFC_ENV_FILE` | `/opt/data/.env` | 飞书凭据文件 |
-| `HFC_VERSION` | `latest`（脚本）/ `v4.3.6`（Compose 示例） | 指定安装 tag 或分支 |
+| `HFC_VERSION` | `latest`（脚本）/ `v4.3.7`（Compose 示例） | 指定安装 tag 或分支 |
 | `HFC_PYTHON` | 自动检测 Hermes venv | 显式指定容器内 Python |
 
 示例：
@@ -568,7 +574,7 @@ python3 -m hermes_feishu_card.cli status --config ~/.hermes/config.yaml
 ```bash
 export FEISHU_APP_ID=cli_xxx
 export FEISHU_APP_SECRET=xxx
-export HFC_VERSION=v4.3.6
+export HFC_VERSION=v4.3.7
 bash install-docker.sh --profile-id child --event-url http://hfc-sidecar:8765/events
 ```
 
@@ -853,6 +859,7 @@ Hermes hook 将事件 fail-open 转发给 sidecar。sidecar 持有完整会话�
 
 | 版本 | 日期 | 主要变更 |
 |------|------|---------|
+| [v4.3.7](release-notes-v4.3.7.md) | 2026-08-26 | Issue #240 / PR #241：installer exact matcher 兼容 Hermes session-scoped media/local delivery filters，并对其他关键字调用保持 fail-closed |
 | [v4.3.6](release-notes-v4.3.6.md) | 2026-08-25 | Issue #237：无 reply anchor 的话题 create 改用 `chat_id`，避免 `receive_id_type=thread_id` 被飞书以 `99992402` 拒绝；PR #228：approval/clarify 交互卡与 completion notification 支持可配置地 `@` 发起人 |
 | [v4.3.5](release-notes-v4.3.5.md) | 2026-08-24 | 修复 HFC `edit_message` wrapper 向 Hermes v2026.8.3 Feishu adapter 转发不受支持的内部 `metadata` 所触发的 `TypeError`，并保留支持该参数的 adapter 与其他未知关键字的原有语义 |
 | [v4.3.4](release-notes-v4.3.4.md) | 2026-08-24 | runtime interaction listener 避免 reverse-DNS 启动阻塞并允许未显式 close 时进程退出；V3 Hybrid `doctor --json` 改用 V3 inspector，消除 Legacy manifest/hash/path 误报 |

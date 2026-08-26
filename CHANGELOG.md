@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.2.0.html).
 
+## V4.3.7 — 2026-08-26
+
+See also: [docs/release-notes-v4.3.7.md](docs/release-notes-v4.3.7.md)
+
+### Fixed
+- Issue #240 / PR #241: the exact Base delivery anchor now accepts Hermes' session-scoped media/local filter calls with exactly `session_key=session_key`, while preserving the legacy single-positional-argument call.
+- `install`, `setup`, `doctor`, and installer detection no longer report `exact_delivery_contract: missing_or_unsupported` for the verified Hermes 2026-08-25 call shape.
+
+### Safety
+- Extra keywords, wrong keyword names or values, `**kwargs`, and missing or extra positional arguments remain rejected. Apply/remove/restore stays idempotent and byte-exact.
+- Feishu API payloads, card ownership, runtime events, callback authentication, delivery UUIDs, and the archived `legacy/` runtime are unchanged.
+
+### Credits
+- Thanks @lanx214 for the Linux reproduction and @PureWhiteWu for PR #241's strict matcher and regression coverage.
+
 ## V4.3.6 — 2026-08-25
 
 See also: [docs/release-notes-v4.3.6.md](docs/release-notes-v4.3.6.md)

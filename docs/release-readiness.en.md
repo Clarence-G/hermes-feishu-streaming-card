@@ -2,7 +2,7 @@
 
 [中文](release-readiness.md) | [English](release-readiness.en.md)
 
-Current release candidate: `4.3.6`. This cycle includes Issue #237 / PR #238's topic-create API compatibility fix and PR #228's requester `@` mentions for approval/clarify cards and completion notifications. Unanchored topic creation falls back to the parent `chat_id`, while anchored placement continues through the reply API. The schema 2.0 owner card remains the only PATCH target and legacy interaction cards remain auxiliary. Full automation, package builds, the release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion. The Issue #237 reporter supplied real Feishu API comparisons and local-hotfix evidence, but this cycle has not independently run a real client smoke; automation is not represented as platform acceptance.
+Current release candidate: `4.3.7`. This cycle fixes Issue #240 / PR #241: the Hermes 2026-08-25 core passes `session_key=session_key` to the Base media/local delivery filters, and the installer exact matcher now accepts that new call plus the legacy call without keywords while every other shape remains fail-closed. Full automation, the release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion. This cycle has not independently run a real Feishu client smoke; automation is not represented as platform acceptance.
 
 V3.9.0 was released on 2026-07-11, and V3.9.1 was released on 2026-07-11. The V4.0.13 all-command lifecycle remains intact; V4.2.0 narrows only a private-chat bare `/update` into the stricter dedicated maintenance card.
 
@@ -147,7 +147,16 @@ Acceptance also exposed an upstream Hermes `cron run` status-reporting bug: a su
 
 The `v3.9.0` release-assets workflow publishes four assets: the macOS tarball, Linux tarball, Windows zip, and checksums file: `hermes-feishu-card-v3.9.0-macos.tar.gz`, `hermes-feishu-card-v3.9.0-linux.tar.gz`, `hermes-feishu-card-v3.9.0-windows.zip`, and `hermes-feishu-card-v3.9.0-checksums.txt`.
 
-## V4.3.6 Release Gates
+## V4.3.7 Release Gates
+
+- Issue #240 / PR #241: the exact matchers for Base `filter_media_delivery_paths` / `filter_local_delivery_paths` must accept both the legacy single-positional-argument call and the new call with exactly `session_key=session_key`, avoiding `exact_delivery_contract: missing_or_unsupported`.
+- Extra, wrong, or unpacked keywords, wrong values, and missing or extra positional arguments must all fail closed. Apply/remove/restore must remain idempotent and byte-exact.
+- Exact PR head `5e75650b0f147a24e65d5f0e499fe8b5a3f8f22f`: focused regression **`460 passed, 1 skipped`**; all six adversarial call shapes were rejected; real Hermes source at `82b32f32ef` passed apply/idempotent/remove roundtrip verification.
+- Full pytest in a fresh Python 3.12 regular-wheel environment **`3330 passed, 5 skipped in 569.93s`**; `git diff --check` **passed**.
+- All 12 GitHub checks on PR #241 passed; exact merge `7fcf3cbd67d3a5100739e9e3d3d7cdcce080cb62`. Release-candidate CI, exact release merge, annotated tag, public tagged install, and Release assets/checksums: **pending the final gates**.
+- Real Feishu client smoke: **not run**. This fix only changes installer AST-contract recognition and does not alter Feishu API/card runtime behavior; automation is not represented as platform acceptance.
+
+## V4.3.6 Release Gates (historical)
 
 - Issue #237 / PR #238: an unanchored topic path must not use `thread_id` as the create API's `receive_id_type` or `receive_id`; the actual request must target the parent `chat_id`. A path with `reply_to_message_id` continues using the reply API and `reply_in_thread`.
 - PR #228: approval/clarify cards and the opt-in completion notification may `@` mention the requester. `card.mentions_in_cards: false` must override per-kind and completion settings. With `completion_notify.mention: false`, a system/background turn without a sender sends a plain completion notification; mention-enabled delivery still rejects a missing or malformed `open_id`.
@@ -155,7 +164,7 @@ The `v3.9.0` release-assets workflow publishes four assets: the macOS tarball, L
 - Exact feature/fix merges: PR #238 `199d0390269693e74d1ff130cb7b4ecc4570dcfe`; PR #228 `69f47123611bb1639e74d9a076212ce621322805`.
 - Existing regression evidence: #237 full pytest in a disposable regular-wheel environment **`3283 passed, 5 skipped`**; #228 final-combination related units **`225 passed`**, server integration **`324 passed`**, the two new completion regressions separately **`2 passed`**, and all 12 CI checks on the final rebased head passed.
 - v4.3.6 release candidate: `git diff --check` **passed**; full pytest in a fresh Python 3.12 regular-wheel environment **`3325 passed, 5 skipped in 560.94s`**; PEP 517 sdist/wheel, package/distribution `4.3.6` from isolated `site-packages`, the single plugin entrypoint, all 24 slices, and the main CLI plus `enable/disable --help` are verified.
-- Release PR CI, exact release merge, annotated tag, public tagged install, and Release assets/checksums: **pending**.
+- Release PR CI, exact release merge `a2a244659f198ecd57c862455d3f4d658a827b66`, annotated tag, public tagged install, and Release assets/checksums: **completed**.
 - Real Feishu: the Issue #237 reporter verified that invalid `thread_id` creation returns `99992402`, while `chat_id` creation and the reply API succeed, and reported successful creates after a local hotfix. Independent maintainer client smoke in this cycle: **not run**. Warning throttling is outside this release.
 
 ## V4.3.5 Release Gates (historical)
