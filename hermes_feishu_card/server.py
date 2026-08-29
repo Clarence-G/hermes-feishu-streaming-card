@@ -1273,6 +1273,7 @@ async def _interaction_action(
     expired_interaction = None
     expiry_sequence = -1
     runtime_callback: dict[str, Any] | None = None
+    callback_card: dict[str, Any] | None = None
     async with lock:
         current_session = request.app[SESSIONS_KEY].get(session_key)
         current_interaction = (
@@ -1350,7 +1351,17 @@ async def _interaction_action(
                 sequence=current_session.last_sequence + 1,
                 created_at=time.time(),
             )
-            response, post_lock_task = await _apply_event_locked(request, event)
+            response, post_lock_task = await _apply_event_locked(
+                request,
+                event,
+                advance_sequence=False,
+            )
+            if response.status < 400:
+                callback_card = _render_interaction_callback_card_for_app(
+                    request.app,
+                    session,
+                    session_key=session_key,
+                )
     if runtime_callback is not None:
         try:
             resolved = await _resolve_runtime_interaction_callback(
@@ -1425,7 +1436,17 @@ async def _interaction_action(
                 sequence=current_session.last_sequence + 1,
                 created_at=time.time(),
             )
-            response, post_lock_task = await _apply_event_locked(request, event)
+            response, post_lock_task = await _apply_event_locked(
+                request,
+                event,
+                advance_sequence=False,
+            )
+            if response.status < 400:
+                callback_card = _render_interaction_callback_card_for_app(
+                    request.app,
+                    session,
+                    session_key=session_key,
+                )
     if expired_card is not None:
         feishu_message_id = request.app[FEISHU_MESSAGE_IDS_KEY].get(session_key)
         if feishu_message_id:
@@ -1457,7 +1478,8 @@ async def _interaction_action(
         {
             "ok": True,
             "toast": {"type": "success", "content": "已选择"},
-            "card": _render_interaction_callback_card_for_app(
+            "card": callback_card
+            or _render_interaction_callback_card_for_app(
                 request.app,
                 session,
                 session_key=session_key,
@@ -4488,7 +4510,12 @@ def _reply_in_thread_for_event(event: SidecarEvent) -> bool:
     return False
 
 
-async def _apply_event_locked(request: web.Request, event: SidecarEvent) -> tuple[web.Response, Any]:
+async def _apply_event_locked(
+    request: web.Request,
+    event: SidecarEvent,
+    *,
+    advance_sequence: bool = True,
+) -> tuple[web.Response, Any]:
     """Process event state inside the lock. Returns (response, post_lock_task).
 
     post_lock_task is a coroutine that performs Feishu API calls outside the lock
@@ -5150,7 +5177,7 @@ async def _apply_event_locked(request: web.Request, event: SidecarEvent) -> tupl
             session,
             now=interaction_checked_at,
         )
-    applied = session.apply(event)
+    applied = session.apply(event, advance_sequence=advance_sequence)
     if applied:
         _refresh_session_display_status(request, session)
         _register_session_aliases(request.app, incoming_event, session_key)
