@@ -60,6 +60,33 @@ def test_v437_session_scoped_delivery_filter_release_contract():
     assert "apply/remove/restore 逐字往返" in maintenance
 
 
+def test_unreleased_setup_sequence_and_proxy_contracts_are_documented():
+    changelog = read_doc("CHANGELOG.md")
+    readme = read_doc("README.md")
+    readme_en = read_doc("README.en.md")
+    install_doc = read_doc("README-install.md")
+    guide = read_doc("docs/user-guide.md")
+    guide_en = read_doc("docs/user-guide.en.md")
+    maintenance = read_doc("docs/wiki/maintenance-guide.md")
+
+    assert "## Unreleased" in changelog
+    for marker in ("Issue #244", "Issue #245", "PR #242"):
+        assert marker in changelog
+    for contributor in ("@nasvip", "@Timeral", "@PureWhiteWu"):
+        assert contributor in changelog
+    for text in (readme, readme_en):
+        for contributor in ("nasvip", "Timeral", "PureWhiteWu"):
+            assert f"https://github.com/{contributor}" in text
+    for text in (readme, readme_en, install_doc, guide, guide_en, maintenance):
+        assert "--transient" in text
+    assert "重启后不会存活" in guide
+    assert "will not survive a reboot" in install_doc
+    assert "will not survive a reboot" in guide_en
+    assert "不得推进 Hermes `/events` transport 的 `last_sequence`" in maintenance
+    assert "callback 响应卡要在同一 session lock 内快照" in maintenance
+    assert "不得自动 enable linger、调用 sudo 或进入 system manager" in maintenance
+
+
 def test_maintainer_docs_define_reliable_notice_delivery_contract():
     event_flow = read_doc("docs/wiki/event-flow.md")
     maintenance = read_doc("docs/wiki/maintenance-guide.md")
@@ -1269,7 +1296,7 @@ def test_v390_documents_operations_reliability_release_gate():
     assert "operations and reliability foundation" in released
     assert "PR #84" in released
     assert "@Zanetach" in released
-    assert "## Unreleased" not in changelog
+    assert changelog.index("## Unreleased") < changelog.index("## V4.3.7")
     assert "安全修复" in readme
     assert "profile" in install_doc.lower()
     assert "group" in acceptance.lower()

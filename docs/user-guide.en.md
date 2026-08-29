@@ -135,7 +135,9 @@ New installs write `integrity.mode: safe`; an old config without the section loa
 
 `service.manager: auto` selects an available `systemd-user` manager or falls back to `detached`; it never silently enters `systemd-system` or invokes sudo. `systemd-system` is an explicit Linux-only transient-unit opt-in. Docker stays an ordinary container process with `detached`. See [V4.1 safety controls and troubleshooting](wiki/v4.1-safety-controls.md) for the full boundary.
 
-V4.3.0 also provides explicit boot persistence without changing the transient default used by `start`. A Linux user or administrator first confirms linger, then creates the real ownership-protected user unit:
+On Linux, guided `setup` now creates the HFC ownership-protected persistent user unit by default when the user manager works and linger is already enabled. It never enables linger, invokes sudo, or crosses into the system manager. When that capability is unavailable, setup warns that the sidecar will not survive a reboot, starts the existing transient sidecar, and prints the exact `enable` command for after the user/admin policy enables linger. `setup --transient` explicitly opts out even when persistence is ready. Standalone `start` remains transient by default.
+
+A user or administrator can also confirm linger first and create persistence explicitly:
 
 ```bash
 loginctl enable-linger "$USER"
@@ -737,7 +739,7 @@ Ensure Hermes `config.yaml` has `streaming.enabled: true` and `streaming.transpo
 
 | Command | Description |
 |---------|-------------|
-| `setup --hermes-dir ... --yes` | One-shot install (config, check, hook, sidecar, health); add `--accept-hermes-upgrade` only after confirming Hermes replaced source |
+| `setup --hermes-dir ... --yes` | One-shot install (config, check, hook, sidecar, health); defaults to boot persistence when Linux capabilities are ready, otherwise warns and starts transiently; use `--transient` to opt out, and add `--accept-hermes-upgrade` only after confirming Hermes replaced source |
 | `doctor --config ... --hermes-dir ...` | Diagnostics: `version_source`, `version`, `minimum_supported_version`, `run_py_exists`, `hook_strategy`, `compatibility`, anchors, `reason`; supports `--explain` / `--json` |
 | `install --hermes-dir ... --yes` | Install hook into Hermes; after confirming replaced source, add `--accept-hermes-upgrade` for one-step recovery and reinstall |
 | `repair --hermes-dir ... --yes` | Repair verifiable hook manifest/backup state without overwriting user edits; changed upgrade source requires explicit `--accept-hermes-upgrade` |

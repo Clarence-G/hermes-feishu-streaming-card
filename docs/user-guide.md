@@ -135,7 +135,9 @@ Issue #162 所述的多机器人群聊需要显式使用原生模式：把目标
 
 `service.manager: auto` 只选择可用的 `systemd-user`，否则使用 `detached`，从不隐式进入 `systemd-system` 或调用 sudo。`systemd-system` 仅 Linux 显式 opt-in 且只用 transient unit；Docker 保持普通容器进程与 `detached`。完整排障见 [V4.1 安全控制与排障](wiki/v4.1-safety-controls.md)。
 
-V4.3.0 另提供显式开机常驻，不改变 `start` 的 transient 默认值。Linux 用户先由自己或管理员确认 linger，再创建受 HFC ownership 保护的真实 user unit：
+Linux 上的引导式 `setup` 会在 user manager 可用且 linger 已开启时，默认创建受 HFC ownership 保护的开机常驻 user unit；不会自行开启 linger、调用 sudo 或切换到 system manager。能力不可用时会明确警告“重启后不会存活”，临时启动现有 transient sidecar，并打印满足条件后可执行的精确 `enable` 命令。即使能力就绪，也可用 `setup --transient` 显式关闭自动常驻。独立 `start` 的默认值仍是 transient。
+
+也可以先由用户或管理员确认 linger，再显式创建常驻服务：
 
 ```bash
 loginctl enable-linger "$USER"
@@ -807,7 +809,7 @@ streaming:
 
 | 命令 | 说明 |
 |------|------|
-| `setup --hermes-dir ... --yes` | 一键安装：配置、检测、hook、sidecar、健康检查；确认 Hermes 替换了源码时可加 `--accept-hermes-upgrade` |
+| `setup --hermes-dir ... --yes` | 一键安装：配置、检测、hook、sidecar、健康检查；Linux 能力就绪时默认开机常驻，否则警告后 transient 启动；可加 `--transient` 显式关闭常驻，确认 Hermes 替换了源码时可加 `--accept-hermes-upgrade` |
 | `doctor --config ... --hermes-dir ...` | 诊断 Hermes 版本、runtime import、`hook_strategy`、`compatibility`、anchors 和原因；支持 `--explain` / `--json` |
 | `install --hermes-dir ... --yes` | 安装插件到 Hermes runtime venv，并安装 hook；确认 Hermes 替换了源码时可加 `--accept-hermes-upgrade` 一步恢复并重装 |
 | `repair --hermes-dir ... --yes` | 修复可验证的 hook manifest/backup 状态，不覆盖用户改动；真实升级源码变更需显式加 `--accept-hermes-upgrade` |
