@@ -125,6 +125,11 @@ def stub_setup_runtime(monkeypatch, hermes_dir):
         "_resolve_start_runtime_identity",
         lambda _root: (runtime_python, identity),
     )
+    monkeypatch.setattr(
+        cli,
+        "persistent_sidecar_setup_blocker",
+        lambda _config: "test fixture uses transient sidecar",
+    )
     return runtime_python, identity
 
 
