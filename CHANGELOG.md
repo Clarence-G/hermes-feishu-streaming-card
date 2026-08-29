@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.2.0.html).
 
-## Unreleased
+## V4.3.8 — 2026-08-29
+
+See also: [docs/release-notes-v4.3.8.md](docs/release-notes-v4.3.8.md)
 
 ### Fixed
 - Issue #244: guided `setup` now enables the owned persistent systemd user service by default when the configured user manager and linger are already available. Unsupported hosts or missing linger fall back to the existing transient sidecar with an explicit reboot warning and exact recovery command; `--transient` remains an explicit opt-out.

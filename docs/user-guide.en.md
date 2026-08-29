@@ -64,6 +64,12 @@ Since V3.8.2, the final answer stays in the primary content area while pre-tool 
 | Multi-bot, group, and profile routing is hard to inspect | `bindings.chats`, safe `group_rules` diagnostics, profile-aware sessions, and `/health.routing` diagnostics |
 | Hook or sidecar failures are hard to debug | `doctor`, runtime import checks, `/health` metrics, fail-closed installer, restore/uninstall |
 
+## V4.3.8 Persistent Setup, Batch Clarify, and HTTP Proxy
+
+In V4.3.8, `setup` enables the HFC ownership-protected persistent service by default when the Linux systemd user manager and linger are ready; it never enables linger, invokes sudo, or enters the system manager. When the capability is unavailable, setup explicitly says the sidecar will not survive a host reboot, starts the transient fallback, and prints the follow-up `enable` command. Use `setup --transient` to preserve the old explicit transient behavior.
+
+For consecutive batch clarifies, the card action's internal completion no longer consumes a Hermes `/events` sequence, so the next prompt is not rejected as a duplicate; the callback card is snapshotted under the lock and cannot show the later prompt. Remote Feishu/Lark HTTP requests honor standard proxy environment variables, while local, private, link-local, and unspecified destinations continue to bypass them.
+
 ## V4.3.7 Hermes Delivery-Filter Installer Compatibility
 
 The Hermes 2026-08-25 core passes the current session key explicitly to the Base media/local delivery filters: `filter_*_delivery_paths(..., session_key=session_key)`. V4.3.7's installer exact matcher accepts both that call and the legacy call without keywords. Any extra keyword, wrong name or value, `**kwargs`, or missing or extra positional argument is rejected so HFC never patches an unknown Base contract.
@@ -539,14 +545,14 @@ Use `install-docker.sh` inside an existing Hermes container. It defaults to
 script selects Hermes venv Python and does not fall back to system Python unless
 `HFC_PYTHON` is set.
 
-The Compose example defaults `HFC_VERSION` to `v4.3.7`.
+The Compose example defaults `HFC_VERSION` to `v4.3.8`.
 
 Example:
 
 ```bash
 export FEISHU_APP_ID=cli_xxx
 export FEISHU_APP_SECRET=xxx
-export HFC_VERSION=v4.3.7
+export HFC_VERSION=v4.3.8
 bash install-docker.sh --profile-id child --event-url http://hfc-sidecar:8765/events
 ```
 
@@ -789,6 +795,7 @@ The Hermes hook converts `message.started` / `thinking.delta` / `answer.delta` /
 
 | Version | Date | Highlights |
 |---------|------|-----------|
+| [v4.3.8](release-notes-v4.3.8.en.md) | 2026-08-29 | Issue #244: persistent-by-default setup with explicit transient fallback; Issue #245: fixes the batch-clarify sequence race; PR #242: proxy-environment support for remote Feishu/Lark HTTP |
 | [v4.3.7](release-notes-v4.3.7.en.md) | 2026-08-26 | Issue #240 / PR #241: the installer exact matcher supports Hermes session-scoped media/local delivery filters while keeping every other keyword call fail-closed |
 | [v4.3.6](release-notes-v4.3.6.en.md) | 2026-08-25 | Issue #237: unanchored topic creation uses `chat_id` instead of Feishu's rejected `receive_id_type=thread_id`; PR #228: approval/clarify cards and completion notifications support configurable requester `@` mentions |
 | [v4.3.5](release-notes-v4.3.5.en.md) | 2026-08-24 | Prevents the HFC `edit_message` wrapper from forwarding unsupported internal `metadata` to the Hermes v2026.8.3 Feishu adapter while preserving metadata-aware adapters and ordinary unknown-keyword `TypeError` behavior |
