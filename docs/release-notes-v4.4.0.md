@@ -42,7 +42,8 @@ V4.4.0 是一次基于新版 Hermes 的体验与功能升级：飞书中的 `/co
 
 - 动态 registry、能力中心结构、安全 copied-event dispatch、状态变更命令拒绝、KPI 原文保留、真实 backlog depth 与极端表格的聚焦回归已完成。
 - 已对独立检出的 Hermes 最新 main 实际加载命令目录，确认识别 66 个 gateway 命令，并读取 `/bg`、`/btw`、`/plan`、`/model`、`/busy`、`/commands` 的新版元数据。
-- 完整 pytest：**`3355 passed, 6 skipped`**；`git diff --check`：**通过**。
+- 完整 pytest：**`3356 passed, 5 skipped`**；`git diff --check`：**通过**。
 - sdist/wheel：**构建通过**；干净 Python 3.12 venv 从 wheel 导入 package/distribution version 均为 `4.4.0`，来源为隔离 `site-packages`，CLI entry point 与 `--help`：**通过**。
 - release PR CI、exact merge、annotated tag、public install 与 Release assets/checksums 只在发布流程实际完成后记录。
-- 真实飞书私聊/群聊 smoke：**待执行**。自动化不冒充真实平台验收。
+- 真实飞书私聊/群聊 smoke：**已通过（2026-08-31）**。候选 wheel `4.4.0` 运行在官方 Hermes `v2026.8.27` / `0.20.6` 隔离 CLI 环境；私聊和群聊均验证 `/commands` 首页、分类、`/model` 详情、返回导航与安全 `/status` 快捷动作，私聊 `/context` 验证空态和真实用量视图，普通私聊/群聊流式卡均正常完成并显示 footer。
+- 验收后 sidecar 为 `healthy / runtime_ready`，`events_received/events_applied=14/14`、发送 `3/3`、更新 `43/43`，event rejection、发送/更新失败与 profile mismatch 均为 0。测试群只有一位真人操作者，changed-operator rejection 继续由自动化覆盖；记录不包含真实 chat/user/message id、凭据或私人截图。

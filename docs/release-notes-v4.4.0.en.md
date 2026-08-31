@@ -42,7 +42,8 @@ V4.4.0 is a feature and experience release designed around current Hermes. Feish
 
 - Focused regressions cover live-registry discovery, capability-card structure, copied-event dispatch, state-changing-command rejection, KPI full-text preservation, real backlog depth, and adversarial tables.
 - The catalog was loaded against an isolated checkout of current Hermes main: 66 gateway commands were discovered, including current metadata for `/bg`, `/btw`, `/plan`, `/model`, `/busy`, and `/commands`.
-- Full pytest: **`3355 passed, 6 skipped`**; `git diff --check`: **passed**.
+- Full pytest: **`3356 passed, 5 skipped`**; `git diff --check`: **passed**.
 - sdist/wheel: **built successfully**. In a clean Python 3.12 venv installed from the wheel, package and distribution versions both report `4.4.0` from isolated `site-packages`; the CLI entry point and `--help`: **passed**.
 - Release PR CI, exact merge, annotated tag, public install, and Release assets/checksums are reported only after the release workflow actually completes.
-- Real Feishu private/group smoke: **pending**. Automated tests are not represented as platform acceptance.
+- Real Feishu private/group smoke: **passed on 2026-08-31**. The `4.4.0` candidate wheel ran in an isolated CLI environment using official Hermes `v2026.8.27` / `0.20.6`. Private and group chats covered the `/commands` overview, category navigation, `/model` details, back navigation, and the safe `/status` quick action. Private `/context` covered both the empty state and a populated usage view, and ordinary private/group streaming cards completed with their footers.
+- Post-acceptance sidecar state was `healthy / runtime_ready`: `events_received/events_applied=14/14`, sends `3/3`, updates `43/43`, with zero event rejections, send/update failures, or profile mismatches. The test group had one human operator, so changed-operator rejection remains automation-backed. No real chat/user/message ids, credentials, or private screenshots are retained.

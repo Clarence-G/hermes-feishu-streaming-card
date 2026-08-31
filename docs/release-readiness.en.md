@@ -2,7 +2,7 @@
 
 [中文](release-readiness.md) | [English](release-readiness.en.md)
 
-Current release candidate: `4.4.0`. This cycle targets Hermes `v2026.8.27` / `0.20.6` and forward-validates against `main@4f225435`: Feishu `/commands` becomes a live native capability center, safe quick actions return to Hermes' original handlers, common command results gain KPI visualization, and real backlog depth plus extreme-Markdown fail-safes are added. Full automation, real Feishu private/group smoke, the release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion; automation is not represented as platform acceptance.
+Current release candidate: `4.4.0`. This cycle targets Hermes `v2026.8.27` / `0.20.6` and forward-validates against `main@4f225435`: Feishu `/commands` becomes a live native capability center, safe quick actions return to Hermes' original handlers, common command results gain KPI visualization, and real backlog depth plus extreme-Markdown fail-safes are added. Full automation and real Feishu private/group smoke are complete. The release PR, exact merge SHA, public tag/install, and Release assets are marked passed only after completion; automation is not represented as platform acceptance.
 
 V3.9.0 was released on 2026-07-11, and V3.9.1 was released on 2026-07-11. The V4.0.13 all-command lifecycle remains intact; V4.2.0 narrows only a private-chat bare `/update` into the stricter dedicated maintenance card.
 
@@ -88,8 +88,8 @@ Real Feishu integration must use local config or environment variables for `FEIS
 - Dynamic `COMMAND_REGISTRY` loading on Hermes `v2026.8.27` / `0.20.6` and isolated `main@4f225435`: **passed**, discovering 66 Gateway commands on current main, including `/bg`, `/btw`, `/plan`, and Gateway `/busy`.
 - Gateway/Base/Cron patch apply, idempotent reinstall, and byte-for-byte restoration on current main: **passed**.
 - Three-level capability navigation, safe copied-event dispatch, group initiator/original-chat binding, state-changing-command rejection, KPI full-text preservation, real backlog depth, and adversarial-table fallback: **focused automation passed**.
-- Full pytest **`3355 passed, 6 skipped`**, `git diff --check`, sdist/wheel, and clean Python 3.12 `site-packages` package/distribution/CLI provenance: **passed**.
-- Real Feishu private/group `/commands`, quick `/status`, and visualized results: **pending after the candidate package passes**.
+- Full pytest **`3356 passed, 5 skipped`**, `git diff --check`, sdist/wheel, and clean Python 3.12 `site-packages` package/distribution/CLI provenance: **passed**.
+- Real Feishu private/group `/commands`, category/detail/back navigation, the safe `/status` quick action, private `/context` empty and populated usage views, and ordinary streaming completion footers: **passed on 2026-08-31**. The `4.4.0` wheel ran with official Hermes `v2026.8.27` / `0.20.6` in an isolated CLI environment. Final sidecar state was `healthy / runtime_ready`, with events `14/14`, sends `3/3`, updates `43/43`, and zero rejections, send/update failures, or profile mismatches. Changed-operator rejection remains automation-backed because the test group had one human operator.
 - Release PR, exact merge SHA, annotated tag, public install, and Release assets/checksums: **pending explicit release approval**.
 
 ## V3.9.0 Manual Acceptance Progress
