@@ -884,6 +884,53 @@ async def test_serial_and_concurrent_conflict_reject_before_session_mutation(cli
     assert len(feishu_client.sent) == 1
 
 
+async def test_redirect_followup_aliases_interrupted_card_to_new_card(client):
+    test_client, feishu_client = client
+    old_started = event_payload(
+        "message.started",
+        0,
+        {"reply_to_message_id": "om_user_original"},
+        conversation_id="omt_topic",
+        message_id="om_old_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    redirect_started = event_payload(
+        "message.started",
+        0,
+        {
+            "reply_to_message_id": "om_redirect_prompt",
+            "redirect_followup": True,
+        },
+        conversation_id="omt_topic",
+        message_id="om_redirect_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    late_original_delta = event_payload(
+        "answer.delta",
+        1,
+        {"text": "redirected answer"},
+        conversation_id="omt_topic",
+        message_id="om_old_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+
+    first = await test_client.post("/events", json=old_started)
+    second = await test_client.post("/events", json=redirect_started)
+    late = await test_client.post("/events", json=late_original_delta)
+
+    assert first.status == second.status == late.status == 200
+    assert test_client.app[SESSION_ALIASES_KEY]["om_old_turn"] == "om_redirect_turn"
+    old_session = test_client.app[SESSIONS_KEY]["om_old_turn"]
+    new_session = test_client.app[SESSIONS_KEY]["om_redirect_turn"]
+    assert old_session.status == "completed"
+    assert old_session.answer_text == ""
+    assert "redirected answer" in new_session.answer_text
+    assert len(feishu_client.sent) == 2
+
+
 async def test_error_response_is_replayed_without_retrying_delivery(tmp_path):
     feishu_client = FakeFeishuClient()
     feishu_client.fail_send = True

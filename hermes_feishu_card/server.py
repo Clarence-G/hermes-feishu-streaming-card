@@ -4871,7 +4871,13 @@ async def _apply_event_locked(
         # where a new message arrives with its own explicit message_id (e.g.
         # after /stop or a generation-bump interrupt).
         await _abandon_stale_sessions_for_chat(
-            request.app, event.chat_id, session_key, event,
+            request.app,
+            event.chat_id,
+            session_key,
+            event,
+            alias_to_session_key=(
+                session_key if _is_redirect_followup_event(event) else None
+            ),
         )
         session = CardSession(
             conversation_id=event.conversation_id,
@@ -4963,7 +4969,13 @@ async def _apply_event_locked(
             # card would be stuck at "生成中" forever.
             if not _is_independent_notice_event(event):
                 await _abandon_stale_sessions_for_chat(
-                    request.app, event.chat_id, session_key, event,
+                    request.app,
+                    event.chat_id,
+                    session_key,
+                    event,
+                    alias_to_session_key=(
+                        session_key if _is_redirect_followup_event(event) else None
+                    ),
                 )
             session = CardSession(
                 conversation_id=event.conversation_id,
@@ -6262,6 +6274,11 @@ def _is_independent_notice_event(event: SidecarEvent) -> bool:
     return scope == "independent" or delivery_kind == "notice"
 
 
+def _is_redirect_followup_event(event: SidecarEvent) -> bool:
+    data = event.data if isinstance(event.data, dict) else {}
+    return event.event == "message.started" and data.get("redirect_followup") is True
+
+
 def _is_compaction_session_start(event: SidecarEvent) -> bool:
     if event.event != "system.notice":
         return False
@@ -6851,6 +6868,8 @@ async def _abandon_stale_sessions_for_chat(
     chat_id: str,
     new_session_key: str,
     event: "SidecarEvent",
+    *,
+    alias_to_session_key: str | None = None,
 ) -> None:
     """Mark stale active sessions for the same chat+conversation as completed.
 
@@ -6902,6 +6921,8 @@ async def _abandon_stale_sessions_for_chat(
         sess.refresh_display_status_source(
             StatusConfig.from_mapping(card_config.get("status"))
         )
+        if alias_to_session_key:
+            app[SESSION_ALIASES_KEY][key] = alias_to_session_key
         logger.info(
             "Abandoning stale session %s (chat_hash=%s, ans=%d chars) "
             "— new session %s is taking over",
