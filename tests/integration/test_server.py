@@ -67,6 +67,7 @@ from hermes_feishu_card.server import (
     NATIVE_HANDOFF_STORE_KEY,
     RUNTIME_CLEANUP_INTERVAL_SECONDS,
     SESSION_ALIASES_KEY,
+    REDIRECT_SESSION_ALIASES_KEY,
     SESSION_CARD_CONFIGS_KEY,
     SESSIONS_KEY,
     create_app as _create_app,
@@ -929,6 +930,124 @@ async def test_redirect_followup_aliases_interrupted_card_to_new_card(client):
     assert old_session.answer_text == ""
     assert "redirected answer" in new_session.answer_text
     assert len(feishu_client.sent) == 2
+
+
+async def test_redirect_followup_aliases_interrupted_turn_id_stream_to_new_card(client):
+    test_client, _feishu_client = client
+    old_started = event_payload(
+        "message.started",
+        0,
+        {"reply_to_message_id": "om_user_original"},
+        conversation_id="omt_topic",
+        message_id="om_old_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+        turn_id="turn-old-runtime",
+    )
+    redirect_started = event_payload(
+        "message.started",
+        0,
+        {
+            "reply_to_message_id": "om_redirect_prompt",
+            "redirect_followup": True,
+        },
+        conversation_id="omt_topic",
+        message_id="om_redirect_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    late_original_delta = event_payload(
+        "answer.delta",
+        1,
+        {"text": "redirected answer"},
+        conversation_id="omt_topic",
+        message_id="om_old_turn",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+        turn_id="turn-old-runtime",
+    )
+
+    first = await test_client.post("/events", json=old_started)
+    second = await test_client.post("/events", json=redirect_started)
+    late = await test_client.post("/events", json=late_original_delta)
+
+    assert first.status == second.status == late.status == 200
+    assert (
+        test_client.app[SESSION_ALIASES_KEY]["turn-old-runtime"]
+        == "om_redirect_turn"
+    )
+    assert (
+        test_client.app[REDIRECT_SESSION_ALIASES_KEY]["turn-old-runtime"]
+        == "om_redirect_turn"
+    )
+    old_session = test_client.app[SESSIONS_KEY]["turn-old-runtime"]
+    new_session = test_client.app[SESSIONS_KEY]["om_redirect_turn"]
+    assert old_session.status == "completed"
+    assert old_session.answer_text == ""
+    assert "redirected answer" in new_session.answer_text
+
+
+async def test_redirect_followup_recovers_turn_terminalized_before_redirect(client):
+    test_client, _feishu_client = client
+    old_started = event_payload(
+        "message.started",
+        0,
+        {"reply_to_message_id": "om_original_question"},
+        conversation_id="omt_topic",
+        message_id="om_deep_search_user",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+        turn_id="turn-old-runtime",
+    )
+    interrupted_terminal = event_payload(
+        "message.completed",
+        1,
+        {"answer": "partial answer", "reply_to_message_id": "om_original_question"},
+        conversation_id="omt_topic",
+        message_id="om_deep_search_user",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+        turn_id="turn-old-runtime",
+    )
+    redirect_started = event_payload(
+        "message.started",
+        0,
+        {
+            "reply_to_message_id": "om_deep_search_user",
+            "redirect_followup": True,
+        },
+        conversation_id="omt_topic",
+        message_id="om_redirect_user",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    late_final = event_payload(
+        "message.completed",
+        2,
+        {"answer": "final redirected answer", "reply_to_message_id": "om_original_question"},
+        conversation_id="omt_topic",
+        message_id="om_deep_search_user",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+        turn_id="turn-old-runtime",
+    )
+
+    first = await test_client.post("/events", json=old_started)
+    terminal = await test_client.post("/events", json=interrupted_terminal)
+    redirect = await test_client.post("/events", json=redirect_started)
+    late = await test_client.post("/events", json=late_final)
+
+    assert first.status == terminal.status == redirect.status == late.status == 200
+    assert (
+        test_client.app[REDIRECT_SESSION_ALIASES_KEY]["turn-old-runtime"]
+        == "om_redirect_user"
+    )
+    assert test_client.app[SESSION_ALIASES_KEY]["om_original_question"] == "om_redirect_user"
+    old_session = test_client.app[SESSIONS_KEY]["turn-old-runtime"]
+    new_session = test_client.app[SESSIONS_KEY]["om_redirect_user"]
+    assert old_session.status == "completed"
+    assert old_session.answer_text == "partial answer"
+    assert new_session.answer_text == "final redirected answer"
 
 
 async def test_error_response_is_replayed_without_retrying_delivery(tmp_path):
@@ -8647,6 +8766,53 @@ async def test_topic_system_notice_with_reply_anchor_updates_existing_card(clien
     assert message_id == "feishu-message-1"
     assert "上下文窗口提示" in str(card)
     assert len(feishu_client.sent) == 1
+
+
+async def test_turn_system_notice_with_user_message_id_updates_existing_card(client):
+    test_client, feishu_client = client
+
+    started = await test_client.post(
+        "/events",
+        json=event_payload(
+            "message.started",
+            0,
+            {"reply_to_message_id": "om_topic_quote"},
+            conversation_id="omt_topic",
+            message_id="om_topic_user",
+            thread_id="omt_topic",
+            turn_id="turn-runtime-1",
+        ),
+    )
+    notice = await test_client.post(
+        "/events",
+        json=event_payload(
+            "system.notice",
+            1,
+            {
+                "reply_to_message_id": "om_topic_user",
+                "title": "运行中",
+                "content": "⏳ Working — 3 min — iteration 7/300, terminal",
+                "level": "info",
+                "notice_kind": "heartbeat",
+                "notice_id": "heartbeat",
+                "notice_scope": "session",
+                "notice_terminal": False,
+            },
+            conversation_id="omt_topic",
+            message_id="om_topic_user",
+            thread_id="omt_topic",
+        ),
+    )
+
+    assert started.status == notice.status == 200
+    assert await notice.json() == {
+        "ok": True,
+        "applied": True,
+        "delivery": {"outcome": "accepted"},
+    }
+    assert len(feishu_client.sent) == 1
+    _message_id, card = await wait_for_card_update(feishu_client, "Working — 3 min")
+    assert "运行中" in str(card)
 
 
 async def test_existing_session_notice_update_failure_is_observable():
