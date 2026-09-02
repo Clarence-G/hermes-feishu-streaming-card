@@ -9273,6 +9273,29 @@ async def test_adapter_thread_create_without_reply_anchor_falls_back_to_chat_cre
     assert adapter.raw_calls[-1][2] == "thread"
 
 
+@pytest.mark.asyncio
+async def test_adapter_metadata_reply_anchor_preserves_topic_thread_placement():
+    adapter = _NativeAckAdapter()
+    runner = SimpleNamespace(adapters={"feishu": adapter})
+    assert hook_runtime.install_feishu_command_card_adapter_methods(runner)
+
+    result = await adapter.send(
+        "oc_native",
+        "queued reply",
+        metadata={
+            "thread_id": "omt_topic",
+            "reply_to_message_id": "om_parent",
+        },
+    )
+
+    assert result.success is True
+    assert adapter.raw_calls == [
+        ("{\"text\": \"queue\"}", "text", "thread", "random-reply"),
+        ("{\"text\": \"d rep\"}", "text", "thread", "random-reply"),
+        ("{\"text\": \"ly\"}", "text", "thread", "random-reply"),
+    ]
+
+
 def _install_native_ack_context(
     adapter,
     content,
