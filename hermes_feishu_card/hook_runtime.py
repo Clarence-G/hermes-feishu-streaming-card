@@ -9246,6 +9246,11 @@ def build_cron_event(local_vars: dict[str, Any]) -> dict[str, Any] | None:
     origin_platform = str(origin.get("platform") or "").strip().lower()
     origin_chat_id = origin.get("chat_id") if origin_platform == "feishu" else ""
     origin_thread_id = origin.get("thread_id") if origin_platform == "feishu" else ""
+    origin_message_id = (
+        str(origin.get("message_id") or "").strip()
+        if origin_platform == "feishu"
+        else ""
+    )
     chat_id = str(
         resolved_chat_id
         or _deliver_chat_id(job.get("deliver"))
@@ -9288,6 +9293,11 @@ def build_cron_event(local_vars: dict[str, Any]) -> dict[str, Any] | None:
         "data": {
             "answer": content,
             "delivery_kind": "cron",
+            **(
+                {"reply_to_message_id": origin_message_id}
+                if origin_message_id
+                else {}
+            ),
             "profile_id": profile_id,
             "profile_source": profile_source,
             "attachments": attachments,

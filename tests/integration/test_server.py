@@ -1050,6 +1050,62 @@ async def test_redirect_followup_recovers_turn_terminalized_before_redirect(clie
     assert new_session.answer_text == "final redirected answer"
 
 
+async def test_redirect_followup_receives_legacy_completion_on_original_anchor(client):
+    test_client, _feishu_client = client
+    old_started = event_payload(
+        "message.started",
+        0,
+        {"reply_to_message_id": "om_original_question"},
+        conversation_id="omt_topic",
+        message_id="om_original_question",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    interrupted_terminal = event_payload(
+        "message.completed",
+        1,
+        {"answer": "partial answer"},
+        conversation_id="omt_topic",
+        message_id="om_original_question",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    redirect_started = event_payload(
+        "message.started",
+        0,
+        {
+            "reply_to_message_id": "om_original_question",
+            "redirect_followup": True,
+        },
+        conversation_id="omt_topic",
+        message_id="om_redirect_user",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    late_final = event_payload(
+        "message.completed",
+        2,
+        {"answer": "final redirected answer"},
+        conversation_id="omt_topic",
+        message_id="om_original_question",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+
+    first = await test_client.post("/events", json=old_started)
+    terminal = await test_client.post("/events", json=interrupted_terminal)
+    redirect = await test_client.post("/events", json=redirect_started)
+    late = await test_client.post("/events", json=late_final)
+
+    assert first.status == terminal.status == redirect.status == late.status == 200
+    assert test_client.app[SESSION_ALIASES_KEY]["om_original_question"] == "om_redirect_user"
+    old_session = test_client.app[SESSIONS_KEY]["om_original_question"]
+    new_session = test_client.app[SESSIONS_KEY]["om_redirect_user"]
+    assert old_session.status == "completed"
+    assert old_session.answer_text == "partial answer"
+    assert new_session.answer_text == "final redirected answer"
+
+
 async def test_error_response_is_replayed_without_retrying_delivery(tmp_path):
     feishu_client = FakeFeishuClient()
     feishu_client.fail_send = True

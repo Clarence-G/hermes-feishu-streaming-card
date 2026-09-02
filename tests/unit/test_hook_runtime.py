@@ -7606,6 +7606,27 @@ def test_build_cron_event_from_feishu_job_origin():
     ]["attachments"]
 
 
+def test_build_cron_event_uses_origin_message_as_topic_reply_anchor():
+    payload = hook_runtime.build_cron_event(
+        {
+            "job": {
+                "id": "job-topic",
+                "origin": {
+                    "platform": "feishu",
+                    "chat_id": "oc_cron",
+                    "thread_id": "omt_topic",
+                    "message_id": "om_create",
+                },
+            },
+            "delivery_content": "定时结果",
+        }
+    )
+
+    assert payload["conversation_id"] == "omt_topic"
+    assert payload["thread_id"] == "omt_topic"
+    assert payload["data"]["reply_to_message_id"] == "om_create"
+
+
 def test_build_cron_event_extracts_chat_id_from_deliver_string():
     payload = hook_runtime.build_cron_event(
         {
