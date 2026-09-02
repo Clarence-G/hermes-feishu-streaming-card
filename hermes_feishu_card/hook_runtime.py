@@ -9803,6 +9803,8 @@ def _event_data(
                 value = _first_attr_string(local_vars.get("event"), (reply_key,))
             if value:
                 data[reply_key] = value
+        if local_vars.get("redirect_followup") is True:
+            data["redirect_followup"] = True
         return data
     return {}
 

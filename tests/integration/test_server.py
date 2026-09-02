@@ -1106,6 +1106,51 @@ async def test_redirect_followup_receives_legacy_completion_on_original_anchor(c
     assert new_session.answer_text == "final redirected answer"
 
 
+async def test_redirect_followup_hook_payload_aliases_terminalized_card(client):
+    test_client, _feishu_client = client
+    old_started = event_payload(
+        "message.started",
+        0,
+        {"reply_to_message_id": "om_original_question", "profile_id": "default"},
+        conversation_id="omt_topic",
+        message_id="om_original_question",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    interrupted_terminal = event_payload(
+        "message.completed",
+        1,
+        {"answer": "partial answer", "profile_id": "default"},
+        conversation_id="omt_topic",
+        message_id="om_original_question",
+        chat_id="oc_topic",
+        thread_id="omt_topic",
+    )
+    redirect_started = hook_runtime.build_event(
+        "message.started",
+        {
+            "source": SimpleNamespace(
+                platform="feishu",
+                chat_id="oc_topic",
+                thread_id="omt_topic",
+            ),
+            "chat_id": "oc_topic",
+            "message_id": "om_redirect_user",
+            "reply_to_message_id": "om_original_question",
+            "redirect_followup": True,
+        },
+    )
+    assert redirect_started is not None
+
+    first = await test_client.post("/events", json=old_started)
+    terminal = await test_client.post("/events", json=interrupted_terminal)
+    redirect = await test_client.post("/events", json=redirect_started)
+
+    assert first.status == terminal.status == redirect.status == 200
+    assert test_client.app[SESSION_ALIASES_KEY]["default:om_original_question"] == "default:om_redirect_user"
+    assert test_client.app[REDIRECT_SESSION_ALIASES_KEY]["default:om_original_question"] == "default:om_redirect_user"
+
+
 async def test_error_response_is_replayed_without_retrying_delivery(tmp_path):
     feishu_client = FakeFeishuClient()
     feishu_client.fail_send = True

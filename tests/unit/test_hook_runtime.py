@@ -9317,6 +9317,26 @@ async def test_adapter_metadata_reply_anchor_preserves_topic_thread_placement():
     ]
 
 
+def test_build_started_event_preserves_redirect_followup_marker():
+    payload = hook_runtime.build_event(
+        "message.started",
+        {
+            "source": SimpleNamespace(
+                platform="feishu",
+                chat_id="oc_topic",
+                thread_id="omt_topic",
+            ),
+            "chat_id": "oc_topic",
+            "message_id": "om_redirect",
+            "reply_to_message_id": "om_original",
+            "redirect_followup": True,
+        },
+    )
+
+    assert payload is not None
+    assert payload["data"]["redirect_followup"] is True
+
+
 def _install_native_ack_context(
     adapter,
     content,
